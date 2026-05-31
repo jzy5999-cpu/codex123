@@ -103,18 +103,7 @@ To return to the official login mode, use the clear API mode button in the Relay
 
 Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, codex123 will not inject its menu or scripts.
 
-When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, recommendations, and user scripts, can still be used.
-
-## Recommendations
-
-Recommended content is loaded from:
-
-```text
-https://raw.githubusercontent.com/BigPizzaV3/Ad-List/main/ads.json
-https://cdn.jsdelivr.net/gh/BigPizzaV3/Ad-List@main/ads.json
-```
-
-Requests automatically append a `?v=timestamp` cache buster to avoid stale CDN content. Slow recommendation loading does not mark the backend connection as failed.
+When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, and user scripts, can still be used.
 
 ## Updates and Packages
 

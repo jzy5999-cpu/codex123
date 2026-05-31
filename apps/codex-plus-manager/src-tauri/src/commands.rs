@@ -731,9 +731,9 @@ pub async fn sync_providers_now() -> CommandResult<Value> {
 #[tauri::command]
 pub async fn load_ads() -> CommandResult<AdsPayload> {
     match codex_plus_core::ads::fetch_ad_list().await {
-        Ok(payload) => ok("推荐内容已加载。", ads_payload(payload)),
+        Ok(payload) => ok("远端内容已加载。", ads_payload(payload)),
         Err(error) => failed(
-            &format!("推荐内容加载失败：{error}"),
+            &format!("远端内容加载失败：{error}"),
             AdsPayload {
                 version: 1,
                 ads: Vec::new(),
