@@ -391,7 +391,9 @@ fn restore_session_changes(changes: &[SessionChange]) -> anyhow::Result<()> {
 
 fn restore_file_mtime(path: &Path, mtime: Option<SystemTime>) {
     let Some(mtime) = mtime else { return };
-    let Ok(file) = fs::File::options().write(true).open(path) else { return };
+    let Ok(file) = fs::File::options().write(true).open(path) else {
+        return;
+    };
     let times = std::fs::FileTimes::new().set_modified(mtime);
     let _ = file.set_times(times);
 }

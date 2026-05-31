@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const DEFAULT_REPOSITORY: &str = "BigPizzaV3/CodexPlusPlus";
+pub const DEFAULT_REPOSITORY: &str = "jzy5999-cpu/codex123";
 pub const DEFAULT_LATEST_JSON_URL: &str =
-    "https://github.com/BigPizzaV3/CodexPlusPlus/releases/latest/download/latest.json";
+    "https://github.com/jzy5999-cpu/codex123/releases/latest/download/latest.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReleaseAsset {
@@ -165,7 +165,7 @@ pub fn select_update_asset(assets: &[(String, String)]) -> Option<ReleaseAsset> 
 
 pub async fn fetch_latest_release(latest_json_url: &str) -> anyhow::Result<Release> {
     let client =
-        crate::http_client::proxied_client(&format!("Codex++/{}", crate::version::VERSION))?;
+        crate::http_client::proxied_client(&format!("codex123/{}", crate::version::VERSION))?;
     let payload = client
         .get(latest_json_url)
         .header(reqwest::header::ACCEPT, "application/json")
@@ -199,7 +199,7 @@ pub async fn perform_update(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("没有可下载的 Release asset"))?;
     let bytes =
-        crate::http_client::proxied_client(&format!("Codex++/{}", crate::version::VERSION))?
+        crate::http_client::proxied_client(&format!("codex123/{}", crate::version::VERSION))?
             .get(url)
             .send()
             .await?
@@ -260,8 +260,7 @@ fn platform_asset_rank(name: &str) -> u8 {
 }
 
 fn is_windows_installer_asset(name: &str) -> bool {
-    name.contains("codex")
-        && name.contains("plus")
+    name.contains("codex123")
         && (name.ends_with(".msi")
             || name.ends_with("-setup.exe")
             || name.ends_with("_setup.exe")
@@ -270,7 +269,7 @@ fn is_windows_installer_asset(name: &str) -> bool {
 }
 
 fn is_macos_installer_asset(name: &str) -> bool {
-    name.contains("codex") && name.contains("plus") && name.ends_with(".dmg")
+    name.contains("codex123") && name.ends_with(".dmg")
 }
 
 pub fn launch_installer(path: &Path) -> anyhow::Result<()> {

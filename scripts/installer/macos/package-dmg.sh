@@ -3,20 +3,24 @@ set -euo pipefail
 
 VERSION="${1:-0.0.0}"
 ARCH="${2:-$(uname -m)}"
+if [[ "$ARCH" != "arm64" ]]; then
+  echo "codex123 only builds a macOS arm64 DMG; got ARCH=$ARCH" >&2
+  exit 1
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DIST="$ROOT/dist/macos"
 STAGE="$DIST/stage"
 BINARY_DIR="${BINARY_DIR:-$ROOT/target/release}"
-DMG="$DIST/CodexPlusPlus-${VERSION}-macos-${ARCH}.dmg"
+DMG="$DIST/codex123-${VERSION}-macos-${ARCH}.dmg"
 ICON_SOURCE="$ROOT/apps/codex-plus-manager/src-tauri/icons/icon.png"
-ICON_NAME="codex-plus-plus.icns"
+ICON_NAME="codex123.icns"
 ICON_ICNS="$DIST/$ICON_NAME"
 
 rm -rf "$DIST"
 mkdir -p "$STAGE"
 
 prepare_icon() {
-  local iconset="$DIST/codex-plus-plus.iconset"
+  local iconset="$DIST/codex123.iconset"
   rm -rf "$iconset"
   mkdir -p "$iconset"
 
@@ -31,7 +35,9 @@ prepare_icon() {
   sips -z 512 512 "$ICON_SOURCE" --out "$iconset/icon_512x512.png" >/dev/null
   sips -z 1024 1024 "$ICON_SOURCE" --out "$iconset/icon_512x512@2x.png" >/dev/null
 
-  iconutil -c icns "$iconset" -o "$ICON_ICNS"
+  if ! iconutil -c icns "$iconset" -o "$ICON_ICNS" 2>/dev/null; then
+    sips -s format icns "$ICON_SOURCE" --out "$ICON_ICNS" >/dev/null
+  fi
 }
 
 create_app() {
@@ -82,12 +88,12 @@ sign_app() {
 }
 
 prepare_icon
-create_app "Codex++" "CodexPlusPlus" "$BINARY_DIR/codex-plus-plus" "com.bigpizzav3.codexplusplus" "true"
-create_app "Codex++ 管理工具" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.bigpizzav3.codexplusplus.manager" "false"
+create_app "codex123" "codex123" "$BINARY_DIR/codex123" "com.jzy5999.codex123" "true"
+create_app "codex123 管理工具" "codex123Manager" "$BINARY_DIR/codex123-manager" "com.jzy5999.codex123.manager" "false"
 ln -s /Applications "$STAGE/Applications"
 
-sign_app "$STAGE/Codex++.app"
-sign_app "$STAGE/Codex++ 管理工具.app"
+sign_app "$STAGE/codex123.app"
+sign_app "$STAGE/codex123 管理工具.app"
 
-hdiutil create -volname "Codex++" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "codex123" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 echo "$DMG"

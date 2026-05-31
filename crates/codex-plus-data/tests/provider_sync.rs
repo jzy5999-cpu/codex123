@@ -275,11 +275,7 @@ fn provider_sync_preserves_rollout_mtime() {
     let tmp = tempdir().unwrap();
     let home = tmp.path().join(".codex");
     fs::create_dir(&home).unwrap();
-    fs::write(
-        home.join("config.toml"),
-        "model_provider = \"apigather\"\n",
-    )
-    .unwrap();
+    fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
     let rollout = home.join("sessions/2026/rollout-mtime.jsonl");
     write_rollout(&rollout, "openai", "thread-1", "C:/workspace");
 

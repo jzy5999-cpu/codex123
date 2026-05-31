@@ -615,7 +615,7 @@ export function App() {
   const restart = async () => {
     const result = await launchCommand("restart_codex_plus");
     if (result) {
-      showNotice("重启 Codex++", result.message, result.status);
+      showNotice("重启 codex123", result.message, result.status);
       await refreshOverview(true);
     }
   };
@@ -1244,10 +1244,10 @@ export function App() {
     <div className={`shell ${theme}`}>
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">C++</div>
+          <div className="brand-mark">123</div>
           <div className="brand-copy">
             <div className="brand-title-row">
-              <div className="brand-title">Codex++</div>
+              <div className="brand-title">codex123</div>
               {hasUpdate ? (
                 <button
                   className="update-dot"
@@ -1300,9 +1300,9 @@ export function App() {
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Button onClick={() => void actions.restart()} title="重启 Codex++" variant="outline">
+            <Button onClick={() => void actions.restart()} title="重启 codex123" variant="outline">
               <Rocket className="h-4 w-4" />
-              重启 Codex++
+              重启 codex123
             </Button>
             <Button onClick={() => void actions.refreshCurrent()} size="icon" title="刷新当前页面" variant="outline">
               <RefreshCw className="h-4 w-4" />
@@ -1487,7 +1487,7 @@ function OverviewScreen({
           <Toolbar>
             <Button onClick={() => void actions.launch()}>
               <Rocket className="h-4 w-4" />
-              启动 Codex++
+              启动 codex123
             </Button>
             <Button variant="secondary" onClick={() => void actions.goLogs()}>
               打开关于
@@ -1650,7 +1650,7 @@ function EnhanceScreen({
               type="checkbox"
             />
             <span>
-              <strong>启用 Codex++ 页面增强</strong>
+              <strong>启用 codex123 页面增强</strong>
               <small>关闭后会停用删除、导出、项目移动、Timeline、插件相关和菜单位置增强。</small>
             </span>
           </label>
@@ -1760,7 +1760,7 @@ function ProviderSyncScreen({
             />
             <span>
               <strong>启动前自动修复历史会话</strong>
-              <small>开启后，通过 Codex++ 启动 Codex 前自动整理一次旧对话的归属标记。</small>
+              <small>开启后，通过 codex123 启动 Codex 前自动整理一次旧对话的归属标记。</small>
             </span>
           </label>
           <div className="relay-grid compact">
@@ -1782,7 +1782,7 @@ function ProviderSyncScreen({
         <CardContent>
           <GuideList
             items={[
-              "自动修复只在 Codex++ 启动 Codex 前运行，不会常驻监控或反复改写。",
+              "自动修复只在 codex123 启动 Codex 前运行，不会常驻监控或反复改写。",
               "需要马上整理旧对话时，可以点击“立刻修复历史会话”。",
               "它不控制页面功能，也不影响 API URL 或 Key。",
               "切回官方时历史会话会整理为 openai；切到 API 时会整理为 custom。",
@@ -1874,7 +1874,7 @@ function MaintenanceScreen({
         <CardContent>
           <label className="check-row">
             <input checked={removeOwnedData} onChange={(event) => onRemoveOwnedDataChange(event.currentTarget.checked)} type="checkbox" />
-            <span>卸载时移除 Codex++ 托管数据</span>
+            <span>卸载时移除 codex123 托管数据</span>
           </label>
           <Toolbar>
             <Button onClick={() => void actions.installEntrypoints()}>安装入口</Button>
@@ -1884,7 +1884,7 @@ function MaintenanceScreen({
         </CardContent>
       </Panel>
       <Panel>
-        <CardHead title="自动接管" detail="Watcher 用于保持 Codex++ 接管状态" />
+        <CardHead title="自动接管" detail="Watcher 用于保持 codex123 接管状态" />
         <CardContent>
           <Toolbar>
             <Button variant="secondary" onClick={() => void actions.installWatcher()}>安装 watcher</Button>
@@ -1940,7 +1940,7 @@ function MaintenanceScreen({
             </Field>
           </div>
           <Toolbar>
-            <Button onClick={() => void actions.launch()}>启动 Codex++</Button>
+            <Button onClick={() => void actions.launch()}>启动 codex123</Button>
             <Button variant="secondary" onClick={() => void actions.saveManualCodexAppPath()}>
               保存为默认路径
             </Button>
@@ -1967,19 +1967,19 @@ function AboutScreen({
   return (
     <>
       <Panel>
-        <CardHead title="关于 Codex++" detail="本地 Codex 增强、管理工具和安装包维护" />
+        <CardHead title="关于 codex123" detail="本地 Codex 增强、管理工具和安装包维护" />
         <CardContent>
           <div className="metric-list">
-            <Metric label="Codex++ 版本" value={overview?.current_version ?? update?.currentVersion ?? "-"} />
+            <Metric label="codex123 版本" value={overview?.current_version ?? update?.currentVersion ?? "-"} />
             <Metric label="Codex 版本" value={overview?.codex_version ?? "未检测到"} />
-            <Metric label="项目地址" value="github.com/BigPizzaV3/CodexPlusPlus" />
+            <Metric label="项目地址" value="github.com/jzy5999-cpu/codex123" />
           </div>
           <Toolbar>
-            <Button onClick={() => void actions.openExternalUrl("https://github.com/BigPizzaV3/CodexPlusPlus")} variant="secondary">
+            <Button onClick={() => void actions.openExternalUrl("https://github.com/jzy5999-cpu/codex123")} variant="secondary">
               <ExternalLink className="h-4 w-4" />
               打开项目主页
             </Button>
-            <Button onClick={() => void actions.openExternalUrl("https://github.com/BigPizzaV3/CodexPlusPlus/issues")} variant="secondary">
+            <Button onClick={() => void actions.openExternalUrl("https://github.com/jzy5999-cpu/codex123/issues")} variant="secondary">
               <ExternalLink className="h-4 w-4" />
               反馈问题
             </Button>
@@ -2672,7 +2672,7 @@ function RelayProfileEditor({
       {showApiFields && profile.protocol === "chatCompletions" ? (
         <div className="hint-line relay-protocol-hint">
           <MessageCircle className="h-4 w-4" />
-          <span>此上游会通过本地 127.0.0.1:57321 转成 Responses API，需要从 Codex++ 启动 Codex。</span>
+          <span>此上游会通过本地 127.0.0.1:57321 转成 Responses API，需要从 codex123 启动 Codex。</span>
         </div>
       ) : null}
       <div className="hint-line relay-protocol-hint">
@@ -3833,7 +3833,7 @@ function healthItems(overview: OverviewResult | null) {
       title: "静默启动入口",
       status: overview?.silent_shortcut.status ?? "not_checked",
       ok: overview?.silent_shortcut.status === "installed",
-      detail: overview?.silent_shortcut.path || "缺少 Codex++ 静默启动快捷方式时可在安装维护页修复。",
+      detail: overview?.silent_shortcut.path || "缺少 codex123 静默启动快捷方式时可在安装维护页修复。",
     },
     {
       title: "管理工具入口",

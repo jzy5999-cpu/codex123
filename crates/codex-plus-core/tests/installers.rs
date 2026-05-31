@@ -8,23 +8,20 @@ use codex_plus_core::install::{
 fn windows_entrypoint_plan_contains_silent_and_manager_entrypoints() {
     let options = InstallOptions {
         install_root: Some("C:/Users/A/Desktop".into()),
-        launcher_path: Some("C:/Tools/codex-plus-plus.exe".into()),
-        manager_path: Some("C:/Tools/codex-plus-plus-manager.exe".into()),
+        launcher_path: Some("C:/Tools/codex123.exe".into()),
+        manager_path: Some("C:/Tools/codex123-manager.exe".into()),
         remove_owned_data: false,
     };
 
     let plan = build_windows_entrypoint_plan(&options);
 
-    assert!(plan.silent_shortcut.ends_with("Codex++.lnk"));
-    assert!(plan.manager_shortcut.ends_with("Codex++ 管理工具.lnk"));
-    assert_eq!(plan.launcher_path, "C:/Tools/codex-plus-plus.exe");
-    assert_eq!(plan.manager_path, "C:/Tools/codex-plus-plus-manager.exe");
-    assert_eq!(plan.silent_icon_path, "C:/Tools/codex-plus-plus.exe");
-    assert_eq!(
-        plan.manager_icon_path,
-        "C:/Tools/codex-plus-plus-manager.exe"
-    );
-    assert_eq!(plan.uninstall_key, "CodexPlusPlus");
+    assert!(plan.silent_shortcut.ends_with("codex123.lnk"));
+    assert!(plan.manager_shortcut.ends_with("codex123 管理工具.lnk"));
+    assert_eq!(plan.launcher_path, "C:/Tools/codex123.exe");
+    assert_eq!(plan.manager_path, "C:/Tools/codex123-manager.exe");
+    assert_eq!(plan.silent_icon_path, "C:/Tools/codex123.exe");
+    assert_eq!(plan.manager_icon_path, "C:/Tools/codex123-manager.exe");
+    assert_eq!(plan.uninstall_key, "codex123");
     assert_eq!(plan.legacy_uninstall_key, "Codex++");
 }
 
@@ -39,8 +36,8 @@ fn windows_entrypoint_plan_can_request_owned_data_removal_without_shell_script()
 
     let plan = build_windows_entrypoint_plan(&options);
 
-    assert!(plan.silent_shortcut.ends_with("Codex++.lnk"));
-    assert!(plan.manager_shortcut.ends_with("Codex++ 管理工具.lnk"));
+    assert!(plan.silent_shortcut.ends_with("codex123.lnk"));
+    assert!(plan.manager_shortcut.ends_with("codex123 管理工具.lnk"));
     assert!(plan.remove_owned_data);
 }
 
@@ -48,49 +45,49 @@ fn windows_entrypoint_plan_can_request_owned_data_removal_without_shell_script()
 fn macos_bundle_metadata_contains_silent_and_manager_apps() {
     let options = InstallOptions {
         install_root: Some("/Applications".into()),
-        launcher_path: Some("/opt/Codex++/codex-plus-plus".into()),
-        manager_path: Some("/opt/Codex++/codex-plus-plus-manager".into()),
+        launcher_path: Some("/opt/codex123/codex123".into()),
+        manager_path: Some("/opt/codex123/codex123-manager".into()),
         remove_owned_data: false,
     };
 
     let silent = build_macos_app_bundle(&options, false);
     let manager = build_macos_app_bundle(&options, true);
 
-    assert!(silent.app_path.ends_with("Codex++.app"));
-    assert!(manager.app_path.ends_with("Codex++ 管理工具.app"));
-    assert!(silent.info_plist.contains("<string>Codex++</string>"));
+    assert!(silent.app_path.ends_with("codex123.app"));
+    assert!(manager.app_path.ends_with("codex123 管理工具.app"));
+    assert!(silent.info_plist.contains("<string>codex123</string>"));
     assert!(
         manager
             .info_plist
-            .contains("<string>Codex++ 管理工具</string>")
+            .contains("<string>codex123 管理工具</string>")
     );
-    assert!(silent.launch_script.contains("codex-plus-plus"));
-    assert!(manager.launch_script.contains("codex-plus-plus-manager"));
+    assert!(silent.launch_script.contains("codex123"));
+    assert!(manager.launch_script.contains("codex123-manager"));
 }
 
 #[test]
 fn installer_exports_expected_two_entrypoint_names() {
-    assert_eq!(shortcut_names(), ("Codex++.lnk", "Codex++ 管理工具.lnk"));
-    assert_eq!(app_bundle_names(), ("Codex++.app", "Codex++ 管理工具.app"));
+    assert_eq!(shortcut_names(), ("codex123.lnk", "codex123 管理工具.lnk"));
+    assert_eq!(
+        app_bundle_names(),
+        ("codex123.app", "codex123 管理工具.app")
+    );
 }
 
 #[test]
 fn companion_binary_path_resolves_macos_silent_app_next_to_manager_app() {
-    let manager_exe = std::path::Path::new(
-        "/Applications/Codex++ 管理工具.app/Contents/MacOS/CodexPlusPlusManager",
-    );
+    let manager_exe =
+        std::path::Path::new("/Applications/codex123 管理工具.app/Contents/MacOS/codex123Manager");
 
     let companion = companion_binary_path_from_exe(manager_exe, SILENT_BINARY);
 
     assert_eq!(
         companion,
-        std::path::PathBuf::from("/Applications/Codex++.app/Contents/MacOS/CodexPlusPlus")
+        std::path::PathBuf::from("/Applications/codex123.app/Contents/MacOS/codex123")
     );
     assert_ne!(
         companion,
-        std::path::PathBuf::from(
-            "/Applications/Codex++ 管理工具.app/Contents/MacOS/codex-plus-plus"
-        )
+        std::path::PathBuf::from("/Applications/codex123 管理工具.app/Contents/MacOS/codex123")
     );
 }
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Codex++ Manager",
+  "productName": "codex123 Manager",
   "version": "1.1.8+1",
-  "identifier": "com.bigpizzav3.codexplusplus.manager",
+  "identifier": "com.jzy5999.codex123.manager",
   "build": {
     "beforeDevCommand": "npm run vite:dev",
     "beforeBuildCommand": "npm run vite:build",
@@ -14,7 +14,7 @@
       {
         "create": false,
         "label": "main",
-        "title": "Codex++ 管理工具",
+        "title": "codex123 管理工具",
         "width": 1180,
         "height": 820,
         "minWidth": 960,
@@ -26,8 +26,8 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
+    "active": true,
+    "targets": "dmg",
     "icon": [
       "icons/icon.ico"
     ]

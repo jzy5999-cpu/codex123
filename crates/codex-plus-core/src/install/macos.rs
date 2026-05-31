@@ -14,9 +14,9 @@ pub fn build_app_bundle(options: &InstallOptions, manager: bool) -> MacosAppBund
     let install_root = install_root_or_default(options);
     let display_name = if manager { MANAGER_NAME } else { SILENT_NAME };
     let executable_name = if manager {
-        "CodexPlusPlusManager"
+        "codex123Manager"
     } else {
-        "CodexPlusPlus"
+        "codex123"
     };
     let binary = if manager {
         MANAGER_BINARY
@@ -32,9 +32,15 @@ pub fn build_app_bundle(options: &InstallOptions, manager: bool) -> MacosAppBund
         binary,
     );
     let identifier_suffix = if manager { ".manager" } else { "" };
+    let lsui_element = !manager;
     MacosAppBundle {
         app_path: install_root.join(format!("{display_name}.app")),
-        info_plist: info_plist(display_name, executable_name, identifier_suffix),
+        info_plist: info_plist(
+            display_name,
+            executable_name,
+            identifier_suffix,
+            lsui_element,
+        ),
         launch_script: format!("#!/bin/sh\nexec \"{}\"\n", target.to_string_lossy()),
     }
 }
@@ -90,9 +96,9 @@ fn copy_icon(resources: &Path) -> anyhow::Result<()> {
     let source = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
-        .map(|path| path.join("codex-plus-plus.png"));
+        .map(|path| path.join("codex123.png"));
     if let Some(source) = source.filter(|path| path.exists()) {
-        fs::copy(source, resources.join("codex-plus-plus.png"))?;
+        fs::copy(source, resources.join("codex123.png"))?;
     }
     Ok(())
 }
@@ -104,12 +110,18 @@ fn executable_name_from_plist(plist: &str) -> String {
         .nth(1)
         .and_then(|tail| tail.split("<string>").nth(1))
         .and_then(|tail| tail.split("</string>").next())
-        .unwrap_or("CodexPlusPlus")
+        .unwrap_or("codex123")
         .to_string()
 }
 
-fn info_plist(display_name: &str, executable_name: &str, identifier_suffix: &str) -> String {
+fn info_plist(
+    display_name: &str,
+    executable_name: &str,
+    identifier_suffix: &str,
+    lsui_element: bool,
+) -> String {
     let version = crate::version::VERSION;
+    let lsui_element = if lsui_element { "true" } else { "false" };
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -120,7 +132,7 @@ fn info_plist(display_name: &str, executable_name: &str, identifier_suffix: &str
   <key>CFBundleDisplayName</key>
   <string>{display_name}</string>
   <key>CFBundleIdentifier</key>
-  <string>com.bigpizzav3.codexplusplus{identifier_suffix}</string>
+  <string>com.jzy5999.codex123{identifier_suffix}</string>
   <key>CFBundleVersion</key>
   <string>{version}</string>
   <key>CFBundleShortVersionString</key>
@@ -130,9 +142,9 @@ fn info_plist(display_name: &str, executable_name: &str, identifier_suffix: &str
   <key>CFBundleExecutable</key>
   <string>{executable_name}</string>
   <key>CFBundleIconFile</key>
-  <string>codex-plus-plus.png</string>
+  <string>codex123.png</string>
   <key>LSUIElement</key>
-  <true/>
+  <{lsui_element}/>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
 </dict>

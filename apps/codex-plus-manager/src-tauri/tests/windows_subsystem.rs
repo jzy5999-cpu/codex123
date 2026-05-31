@@ -99,17 +99,17 @@ fn macos_packager_hides_silent_launcher_but_not_manager() {
     assert!(script.contains("<key>LSUIElement</key>"));
     assert!(script.contains("ARCH=\"${2:-$(uname -m)}\""));
     assert!(script.contains("BINARY_DIR=\"${BINARY_DIR:-$ROOT/target/release}\""));
-    assert!(script.contains("CodexPlusPlus-${VERSION}-macos-${ARCH}.dmg"));
+    assert!(script.contains("codex123-${VERSION}-macos-${ARCH}.dmg"));
     assert!(script.contains(
-        "create_app \"Codex++\" \"CodexPlusPlus\" \"$BINARY_DIR/codex-plus-plus\" \"com.bigpizzav3.codexplusplus\" \"true\""
+        "create_app \"codex123\" \"codex123\" \"$BINARY_DIR/codex123\" \"com.jzy5999.codex123\" \"true\""
     ));
     assert!(script.contains(
-        "create_app \"Codex++ 管理工具\" \"CodexPlusPlusManager\" \"$BINARY_DIR/codex-plus-plus-manager\" \"com.bigpizzav3.codexplusplus.manager\" \"false\""
+        "create_app \"codex123 管理工具\" \"codex123Manager\" \"$BINARY_DIR/codex123-manager\" \"com.jzy5999.codex123.manager\" \"false\""
     ));
 }
 
 #[test]
-fn github_release_workflow_builds_separate_macos_x64_and_arm64_dmgs() {
+fn github_release_workflow_builds_macos_arm64_dmg_only() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let workflow = manifest_dir
         .parent()
@@ -119,12 +119,12 @@ fn github_release_workflow_builds_separate_macos_x64_and_arm64_dmgs() {
         .join(".github/workflows/release-assets.yml");
     let workflow = std::fs::read_to_string(&workflow).expect("read release assets workflow");
 
-    assert!(workflow.contains("macos-15-intel"));
-    assert!(workflow.contains("x86_64-apple-darwin"));
+    assert!(!workflow.contains("macos-15-intel"));
+    assert!(!workflow.contains("x86_64-apple-darwin"));
     assert!(workflow.contains("macos-14"));
     assert!(workflow.contains("aarch64-apple-darwin"));
-    assert!(workflow.contains("package-dmg.sh \"$VERSION\" \"${{ matrix.arch }}\""));
-    assert!(workflow.contains("target/${{ matrix.target }}/release"));
+    assert!(workflow.contains("package-dmg.sh \"$VERSION\" arm64"));
+    assert!(workflow.contains("target/aarch64-apple-darwin/release"));
 }
 
 #[test]
@@ -222,7 +222,8 @@ fn manager_window_and_relay_detail_header_stay_usable() {
     assert!(styles.contains(".relay-detail-sticky"));
     assert!(styles.contains("position: sticky"));
     assert!(styles.contains("top: 0"));
-    assert!(styles.contains("margin: -16px -20px 0"));
+    assert!(styles.contains("margin: 0"));
+    assert!(styles.contains("padding: 10px 20px"));
     assert!(lib_rs.contains(".inner_size(1180.0, 820.0)"));
     assert!(lib_rs.contains(".min_inner_size(960.0, 720.0)"));
     assert!(tauri_conf.contains("\"width\": 1180"));

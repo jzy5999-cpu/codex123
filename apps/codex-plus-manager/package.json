@@ -1,11 +1,11 @@
 {
-  "name": "codex-plus-manager",
+  "name": "codex123-manager",
   "version": "1.1.8+1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "cargo build -p codex-plus-launcher --release && tauri build",
+    "build": "cargo build -p codex-plus-launcher --release && tauri build && BINARY_DIR=\"$PWD/../../target/release\" bash ../../scripts/installer/macos/package-dmg.sh \"$npm_package_version\" arm64",
     "check": "tsc --noEmit -p tsconfig.json",
     "vite:dev": "vite --host 127.0.0.1 --port 1420",
     "vite:build": "vite build"

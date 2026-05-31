@@ -1,7 +1,7 @@
-# Codex++
+# codex123
 
 <p align="center">
-  <img src="docs/images/codex-plus-plus.png" alt="Codex++ icon" width="160">
+  <img src="docs/images/codex-plus-plus.png" alt="codex123 icon" width="160">
 </p>
 
 <p align="center">
@@ -9,29 +9,41 @@
 </p>
 
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/github/v/release/BigPizzaV3/CodexPlusPlus">
-  <img alt="Stars" src="https://img.shields.io/github/stars/BigPizzaV3/CodexPlusPlus">
-  <img alt="License" src="https://img.shields.io/github/license/BigPizzaV3/CodexPlusPlus">
+  <img alt="Release" src="https://img.shields.io/github/v/release/jzy5999-cpu/codex123">
+  <img alt="Stars" src="https://img.shields.io/github/stars/jzy5999-cpu/codex123">
+  <img alt="License" src="https://img.shields.io/github/license/jzy5999-cpu/codex123">
   <img alt="Rust" src="https://img.shields.io/badge/rust-1.85%2B-orange">
   <img alt="Tauri" src="https://img.shields.io/badge/tauri-2.x-24C8DB">
 </p>
 
-Codex++ is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
+codex123 is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
 
 ## Quick Start
 
-Download the latest installer from [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases):
+The first codex123 build targets Apple Silicon MacBook only:
 
-- Windows: `CodexPlusPlus-*-windows-x64-setup.exe`
-- macOS Intel: `CodexPlusPlus-*-macos-x64.dmg`
-- macOS Apple Silicon: `CodexPlusPlus-*-macos-arm64.dmg`
+- macOS Apple Silicon: `codex123-*-macos-arm64.dmg`
 
 After installation, two entry points are available:
 
-- `Codex++`: a silent launcher. It does not show the manager UI and only starts Codex with Codex++ injection.
-- `Codex++ Manager`: a Tauri control panel for launch, diagnostics, repair, updates, relay injection, enhancements, and user scripts.
+- `codex123`: a silent launcher. It does not show the manager UI and only starts Codex with codex123 injection.
+- `codex123 Manager`: a Tauri control panel for launch, diagnostics, repair, updates, relay injection, enhancements, and user scripts.
 
-The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG installs `/Applications/Codex++.app` and `/Applications/Codex++ 管理工具.app`.
+The macOS DMG installs `/Applications/codex123.app` and `/Applications/codex123 管理工具.app`.
+
+Build a local macOS installer from source:
+
+```bash
+cd /Users/jiangzengyan/Downloads/codex/codex123
+cd apps/codex-plus-manager
+npm ci
+npm run vite:build
+cd ../..
+cargo build --release
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 1.1.8+1 arm64
+```
+
+The generated file is `dist/macos/codex123-1.1.8+1-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
 
 ## Sponsors
 
@@ -49,15 +61,15 @@ The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG in
         <img src="docs/images/sponsor-jojocode.svg" alt="JOJO Code" width="150">
       </a>
     </td>
-    <td><a href="https://jojocode.com/"><strong>JOJO Code | Official Codex++ Relay</strong></a><br>Thanks to JOJO Code for sponsoring this project! JOJO Code is the official Codex++ relay service. It is built for daily development and team collaboration, providing stable Codex API access for quick onboarding, long-term use, and project workflows.</td>
+    <td><a href="https://jojocode.com/"><strong>JOJO Code | Official codex123 Relay</strong></a><br>Thanks to JOJO Code for sponsoring this project! JOJO Code is the official codex123 relay service. It is built for daily development and team collaboration, providing stable Codex API access for quick onboarding, long-term use, and project workflows.</td>
   </tr>
   <tr>
     <td align="center">
-      <a href="https://aigocode.com/invite/CodexPlusPlus">
+      <a href="https://aigocode.com/invite/codex123">
         <img src="docs/images/sponsor-aigocode.png" alt="AIGoCode" width="150">
       </a>
     </td>
-    <td><a href="https://aigocode.com/invite/CodexPlusPlus"><strong>AIGoCode</strong></a><br>Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform integrating the latest Claude Code, Codex, and Gemini models, providing stable, efficient, and cost-effective AI programming services. It offers flexible subscription plans, direct access in China, no extra network setup, and fast responses. AIGoCode provides a special benefit for CodexPlusPlus users: users who <a href="https://aigocode.com/invite/CodexPlusPlus">register through this link</a> can receive an extra 10% bonus credit on their first recharge.</td>
+    <td><a href="https://aigocode.com/invite/codex123"><strong>AIGoCode</strong></a><br>Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform integrating the latest Claude Code, Codex, and Gemini models, providing stable, efficient, and cost-effective AI programming services. It offers flexible subscription plans, direct access in China, no extra network setup, and fast responses. AIGoCode provides a special benefit for codex123 users: users who <a href="https://aigocode.com/invite/codex123">register through this link</a> can receive an extra 10% bonus credit on their first recharge.</td>
   </tr>
   <tr>
     <td align="center">
@@ -65,7 +77,7 @@ The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG in
         <img src="docs/images/sponsor-packycode.png" alt="PackyCode" width="150">
       </a>
     </td>
-    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>Thanks to PackyCode for sponsoring this project! PackyCode is a stable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides a special discount for users of this software: register through this link and enter the "CodexPlusPlus" coupon code when recharging to get 10% off your first recharge.</td>
+    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>Thanks to PackyCode for sponsoring this project! PackyCode is a stable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides a special discount for users of this software: register through this link and enter the "codex123" coupon code when recharging to get 10% off your first recharge.</td>
   </tr>
   <tr>
     <td align="center">
@@ -115,7 +127,7 @@ The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG in
 - Rust backend and silent launcher with no extra runtime requirement.
 - Tauri + React manager with dark/light theme support.
 - External CDP injection. No `app.asar` patching and no DLL writes into the Codex installation.
-- Relay injection mode with multiple relay profiles, `CodexPlusPlus` provider configuration, and a one-click switch back to official ChatGPT login mode.
+- Relay injection mode with multiple relay profiles, `codex123` provider configuration, and a one-click switch back to official ChatGPT login mode.
 - Traditional enhancement mode with plugin entry unlock, forced plugin install, session delete, Markdown export, project move, Timeline, and more.
 - Independent user script management with startup injection.
 - Provider Sync to keep historical sessions visible after switching providers.
@@ -134,15 +146,15 @@ In the manager's Relay Injection page:
 1. Make sure ChatGPT login status is detected.
 2. Add one or more relay profiles with Base URL and Key.
 3. Select the active profile and apply relay injection.
-4. Launch `Codex++`.
+4. Launch `codex123`.
 
-Codex++ writes configuration similar to this into `~/.codex/config.toml`:
+codex123 writes configuration similar to this into `~/.codex/config.toml`:
 
 ```toml
-model_provider = "CodexPlusPlus"
+model_provider = "codex123"
 
-[model_providers.CodexPlusPlus]
-name = "CodexPlusPlus"
+[model_providers.codex123]
+name = "codex123"
 wire_api = "responses"
 requires_openai_auth = true
 base_url = "https://example.com/v1"
@@ -153,7 +165,7 @@ To return to the official login mode, use the clear API mode button in the Relay
 
 ## Enhancements
 
-Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, Codex++ will not inject its menu or scripts.
+Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, codex123 will not inject its menu or scripts.
 
 When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, recommendations, and user scripts, can still be used.
 
@@ -170,7 +182,7 @@ Requests automatically append a `?v=timestamp` cache buster to avoid stale CDN c
 
 ## Updates and Packages
 
-Codex++ publishes installers through GitHub Releases. Windows builds an NSIS installer, while macOS builds separate Intel x64 and Apple Silicon arm64 DMGs.
+codex123 publishes installers through GitHub Releases. Windows builds an NSIS installer, while macOS builds separate Intel x64 and Apple Silicon arm64 DMGs.
 
 The manager's About page can check and start updates. When the silent launcher finds a new version, it opens the manager directly on the update prompt.
 
@@ -179,14 +191,14 @@ The manager's About page can check and start updates. When the silent launcher f
 - Codex config: `~/.codex/config.toml`
 - Codex auth state: `~/.codex/auth.json`
 - Codex local database: `~/.codex/state_5.sqlite`
-- Codex++ state and logs: `~/.codex-session-delete/`
+- codex123 state and logs: `~/.codex-session-delete/`
 - Provider Sync backups: `~/.codex/backups_state/provider-sync`
 
 ## FAQ
 
-### The Codex++ menu does not appear
+### The codex123 menu does not appear
 
-Make sure Codex was launched from the `Codex++` entry instead of the original Codex entry. You can also inspect the Diagnostics and Logs pages in the manager.
+Make sure Codex was launched from the `codex123` entry instead of the original Codex entry. You can also inspect the Diagnostics and Logs pages in the manager.
 
 ### The plugin says the backend is disconnected
 
@@ -196,17 +208,17 @@ First test the helper endpoint:
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:57321/backend/status -Body "{}" -ContentType "application/json"
 ```
 
-If the endpoint works but the plugin still times out, it is usually a Codex page CDP bridge or script cache issue. Restart Codex++, or check manager logs for `renderer.script_loaded`, `bridge.request`, and `bridge.response`.
+If the endpoint works but the plugin still times out, it is usually a Codex page CDP bridge or script cache issue. Restart codex123, or check manager logs for `renderer.script_loaded`, `bridge.request`, and `bridge.response`.
 
 ### How is Upstream worktree different from Codex native creation?
 
-Codex++ updates the remote branch first, then creates the worktree as if you ran:
+codex123 updates the remote branch first, then creates the worktree as if you ran:
 
 ```bash
 git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 ```
 
-The new worktree starts from the fresh remote tracking branch instead of the local HEAD used by the current session. If Codex++ cannot safely recognize the current Codex version's native worktree form, use the Codex++ menu entry and enter the repository path, branch name, worktree path, remote, and base branch manually.
+The new worktree starts from the fresh remote tracking branch instead of the local HEAD used by the current session. If codex123 cannot safely recognize the current Codex version's native worktree form, use the codex123 menu entry and enter the repository path, branch name, worktree path, remote, and base branch manually.
 
 ### macOS says the app cannot be opened or is damaged
 
@@ -244,17 +256,17 @@ crates/
   codex-plus-core/              Launch, injection, config, update, install, bridge
   codex-plus-data/              Session data, export, Provider Sync
 scripts/installer/
-  windows/CodexPlusPlus.nsi     Windows NSIS installer
+  windows/codex123.nsi     Windows NSIS installer
   macos/package-dmg.sh          macOS DMG packager
 ```
 
 ## Community and Support
 
-Scan the QR code to join the Codex++ discussion group, report issues, share usage notes, or suggest features:
+Scan the QR code to join the codex123 discussion group, report issues, share usage notes, or suggest features:
 
-<img src="docs/images/discussion-group-qr.jpg" alt="Codex++ discussion group QR code" width="260">
+<img src="docs/images/discussion-group-qr.jpg" alt="codex123 discussion group QR code" width="260">
 
-If Codex++ has helped you, you can buy me a coffee or send a small tip to support continued maintenance.
+If codex123 has helped you, you can buy me a coffee or send a small tip to support continued maintenance.
 
 <p align="center">
   <img src="docs/images/sponsor-alipay.jpg" alt="Alipay sponsor QR code" width="220">
@@ -267,4 +279,4 @@ If Codex++ has helped you, you can buy me a coffee or send a small tip to suppor
 
 ## Notes
 
-Codex++ is an external enhancement tool and does not modify original Codex App files. If a future Codex App update changes page structure, the injection script may need updates.
+codex123 is an external enhancement tool and does not modify original Codex App files. If a future Codex App update changes page structure, the injection script may need updates.

@@ -1,7 +1,7 @@
-# Codex++
+# codex123
 
 <p align="center">
-  <img src="docs/images/codex-plus-plus.png" alt="Codex++ 图标" width="160">
+  <img src="docs/images/codex-plus-plus.png" alt="codex123 图标" width="160">
 </p>
 
 <p align="center">
@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/github/v/release/BigPizzaV3/CodexPlusPlus">
-  <img alt="Stars" src="https://img.shields.io/github/stars/BigPizzaV3/CodexPlusPlus">
-  <img alt="License" src="https://img.shields.io/github/license/BigPizzaV3/CodexPlusPlus">
+  <img alt="Release" src="https://img.shields.io/github/v/release/jzy5999-cpu/codex123">
+  <img alt="Stars" src="https://img.shields.io/github/stars/jzy5999-cpu/codex123">
+  <img alt="License" src="https://img.shields.io/github/license/jzy5999-cpu/codex123">
   <img alt="Rust" src="https://img.shields.io/badge/rust-1.85%2B-orange">
   <img alt="Tauri" src="https://img.shields.io/badge/tauri-2.x-24C8DB">
 </p>
 
-Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
+codex123 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
 
 ## codex123 远控兼容中转
 
@@ -30,10 +30,10 @@ Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修�
 
 1. 先用原版 Codex 登录官方 ChatGPT 账号。
 2. 手机 ChatGPT 登录同一个账号。
-3. 打开 Codex++ 管理工具。
+3. 打开 codex123 管理工具。
 4. 在供应商配置里选择“远控兼容中转”。
 5. 填写中转 `Base URL` 和 `Key`，上游协议选择 `Responses API`。
-6. 从 `Codex++` 入口启动，不要从原版 Codex 图标启动。
+6. 从 `codex123` 入口启动，不要从原版 Codex 图标启动。
 
 该模式会生成类似配置：
 
@@ -61,18 +61,30 @@ requires_openai_auth = true
 
 ## 快速使用
 
-从 [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases) 下载最新版安装包：
+当前第一版只面向 Apple Silicon MacBook，Release 产物为：
 
-- Windows：`CodexPlusPlus-*-windows-x64-setup.exe`
-- macOS Intel：`CodexPlusPlus-*-macos-x64.dmg`
-- macOS Apple Silicon：`CodexPlusPlus-*-macos-arm64.dmg`
+- macOS Apple Silicon：`codex123-*-macos-arm64.dmg`
 
 安装后会有两个入口：
 
-- `Codex++`：静默启动入口，不显示管理界面，只负责启动 Codex 并注入增强功能。
-- `Codex++ 管理工具`：Tauri 控制面板，用于启动、检查、修复、更新、配置中转注入、管理增强功能和用户脚本。
+- `codex123`：静默启动入口，不显示管理界面，只负责启动 Codex 并注入增强功能。
+- `codex123 管理工具`：Tauri 控制面板，用于启动、检查、修复、更新、配置中转注入、管理增强功能和用户脚本。
 
-Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安装 `/Applications/Codex++.app` 和 `/Applications/Codex++ 管理工具.app`。
+macOS DMG 会安装 `/Applications/codex123.app` 和 `/Applications/codex123 管理工具.app`。
+
+本机从源码构建 macOS 安装包：
+
+```bash
+cd /Users/jiangzengyan/Downloads/codex/codex123
+cd apps/codex-plus-manager
+npm ci
+npm run vite:build
+cd ../..
+cargo build --release
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 1.1.8+1 arm64
+```
+
+生成文件位于 `dist/macos/codex123-1.1.8+1-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
 
 ## 赞助商
 <a href="mailto:1727532@qq.com">想显示在下方？</a>
@@ -89,15 +101,15 @@ Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安�
         <img src="docs/images/sponsor-jojocode.svg" alt="JOJO Code" height="80">
       </a>
     </td>
-    <td><a href="https://jojocode.com/"><strong>JOJO Code｜Codex++ 官方中转站</strong></a><br>感谢 JOJO Code 赞助了本项目！JOJO Code 是 Codex++ 官方中转站，面向日常开发和团队协作场景，提供稳定可用的 Codex API 接入体验，适合快速接入、长期使用和项目级工作流。</td>
+    <td><a href="https://jojocode.com/"><strong>JOJO Code｜codex123 官方中转站</strong></a><br>感谢 JOJO Code 赞助了本项目！JOJO Code 是 codex123 官方中转站，面向日常开发和团队协作场景，提供稳定可用的 Codex API 接入体验，适合快速接入、长期使用和项目级工作流。</td>
   </tr>
   <tr>
     <td align="center">
-      <a href="https://aigocode.com/invite/CodexPlusPlus">
+      <a href="https://aigocode.com/invite/codex123">
         <img src="docs/images/sponsor-aigocode.png" alt="AIGoCode" height="80">
       </a>
     </td>
-    <td><a href="https://aigocode.com/invite/CodexPlusPlus"><strong>AIGoCode</strong></a><br>感谢 AIGoCode 赞助了本项目！AIGoCode 是一个集成了 Claude Code、Codex 以及 Gemini 最新模型的一站式平台，为你提供稳定、高效且高性价比的AI编程服务。本站提供灵活的订阅计划，支持多风险，国内直连，无需魔法，极速响应。AIGoCode 为 CodexPlusPlus 的用户提供了特别福利，通过<a href="https://aigocode.com/invite/CodexPlusPlus">此链接注册</a>的用户首次充值可以获得额外10%奖励额度！</td>
+    <td><a href="https://aigocode.com/invite/codex123"><strong>AIGoCode</strong></a><br>感谢 AIGoCode 赞助了本项目！AIGoCode 是一个集成了 Claude Code、Codex 以及 Gemini 最新模型的一站式平台，为你提供稳定、高效且高性价比的AI编程服务。本站提供灵活的订阅计划，支持多风险，国内直连，无需魔法，极速响应。AIGoCode 为 codex123 的用户提供了特别福利，通过<a href="https://aigocode.com/invite/codex123">此链接注册</a>的用户首次充值可以获得额外10%奖励额度！</td>
   </tr>
   <tr>
     <td align="center">
@@ -105,7 +117,7 @@ Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安�
         <img src="docs/images/sponsor-packycode.png" alt="PackyCode" height="80">
       </a>
     </td>
-    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>感谢 PackyCode 赞助了本项目！PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode 为本软件的用户提供了特别优惠，使用此链接注册并在充值时填写"CodexPlusPlus"优惠码，首次充值可以享受9折优惠！</td>
+    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>感谢 PackyCode 赞助了本项目！PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode 为本软件的用户提供了特别优惠，使用此链接注册并在充值时填写"codex123"优惠码，首次充值可以享受9折优惠！</td>
   </tr>
   <tr>
     <td align="center">
@@ -183,13 +195,13 @@ Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安�
 
 ## 交流与支持
 
-欢迎扫码加入 Codex++ 交流群（QQ群：1103050832），反馈问题、交流使用体验或提出新功能建议：
+欢迎扫码加入 codex123 交流群（QQ群：1103050832），反馈问题、交流使用体验或提出新功能建议：
 
 下方微信群二维码如果已满人，可以<a href="https://docs.qq.com/doc/DQ2VOanZTTFZJcUpZ#">点击这里获取最新微信群二维码</a>。
 
-<img src="docs/images/discussion-group-qr.jpg" alt="Codex++ 交流群二维码" width="260">
+<img src="docs/images/discussion-group-qr.jpg" alt="codex123 交流群二维码" width="260">
 
-如果 Codex++ 帮到了你，可以请我喝杯咖啡，或者随手赞赏支持一下继续维护。
+如果 codex123 帮到了你，可以请我喝杯咖啡，或者随手赞赏支持一下继续维护。
 
 <p align="center">
   <img src="docs/images/sponsor-alipay.jpg" alt="支付宝赞赏码" width="220">
@@ -201,7 +213,7 @@ Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安�
 - Rust 后端和静默 launcher，启动时不依赖额外运行时。
 - Tauri + React 管理工具，支持深色/浅色切换。
 - 外部 CDP 注入，不改 `app.asar`，不向 Codex 安装目录写入 DLL。
-- 中转注入模式：支持多个中转配置，写入 `CodexPlusPlus` provider，并可切回官方 ChatGPT 登录态。
+- 中转注入模式：支持多个中转配置，写入 `codex123` provider，并可切回官方 ChatGPT 登录态。
 - 传统增强模式：插件入口解锁、特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
 - 用户脚本独立管理，可在启动时注入自定义脚本。
 - Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见。
@@ -221,14 +233,14 @@ Codex 原生会话列表只有归档入口，没有真正的删除按钮：
 
 ![原生会话列表缺少删除能力](docs/images/pain-no-delete-button.png)
 
-Codex++ 启动后会解锁插件入口，并在会话列表悬停时显示删除按钮：
+codex123 启动后会解锁插件入口，并在会话列表悬停时显示删除按钮：
 
-![Codex++ 解锁插件入口并添加删除按钮](docs/images/solution-plugin-and-delete.png)
+![codex123 解锁插件入口并添加删除按钮](docs/images/solution-plugin-and-delete.png)
 
-顶部菜单栏会出现 `Codex++`，可以查看后端状态并打开设置面板：
+顶部菜单栏会出现 `codex123`，可以查看后端状态并打开设置面板：
 
-![Codex++ 后端状态指示灯](docs/images/backend-status-indicator.png)
-![Codex++ 设置面板](docs/images/settings-panel.png)
+![codex123 后端状态指示灯](docs/images/backend-status-indicator.png)
+![codex123 设置面板](docs/images/settings-panel.png)
 
 ## 中转注入
 
@@ -239,15 +251,15 @@ Codex++ 启动后会解锁插件入口，并在会话列表悬停时显示删除
 1. 确认已经检测到 ChatGPT 登录状态。
 2. 添加一个或多个中转配置，填写 Base URL 和 Key。
 3. 选择当前配置并应用中转注入。
-4. 启动 `Codex++`。
+4. 启动 `codex123`。
 
-Codex++ 会在 `~/.codex/config.toml` 中写入类似配置：
+codex123 会在 `~/.codex/config.toml` 中写入类似配置：
 
 ```toml
-model_provider = "CodexPlusPlus"
+model_provider = "codex123"
 
-[model_providers.CodexPlusPlus]
-name = "CodexPlusPlus"
+[model_providers.codex123]
+name = "codex123"
 wire_api = "responses"
 requires_openai_auth = true
 base_url = "https://example.com/v1"
@@ -258,7 +270,7 @@ experimental_bearer_token = "sk-..."
 
 ## 增强功能
 
-增强功能在管理工具中统一开关。默认开启增强注入；关闭后不会注入 Codex++ 菜单和脚本。
+增强功能在管理工具中统一开关。默认开启增强注入；关闭后不会注入 codex123 菜单和脚本。
 
 如果启用中转注入模式，插件入口解锁和强制安装不再需要，界面会提示“中转注入模式下无需开启”。会话删除、导出、移动、Timeline、推荐内容和用户脚本等增强仍可继续使用。
 
@@ -275,7 +287,7 @@ https://cdn.jsdelivr.net/gh/BigPizzaV3/Ad-List@main/ads.json
 
 ## 自动更新与安装包
 
-Codex++ 通过 GitHub Release 发布安装包。Windows 会生成 NSIS 安装程序，macOS 会生成 Intel x64 和 Apple Silicon arm64 两个 DMG。
+codex123 通过 GitHub Release 发布安装包。Windows 会生成 NSIS 安装程序，macOS 会生成 Intel x64 和 Apple Silicon arm64 两个 DMG。
 
 管理工具的“关于”页可以检查并启动更新。静默启动器发现新版本时会拉起管理工具并进入更新提示。
 
@@ -284,14 +296,14 @@ Codex++ 通过 GitHub Release 发布安装包。Windows 会生成 NSIS 安装程
 - Codex 配置：`~/.codex/config.toml`
 - Codex 登录状态：`~/.codex/auth.json`
 - Codex 本地数据库：`~/.codex/state_5.sqlite`
-- Codex++ 状态与日志：`~/.codex-session-delete/`
+- codex123 状态与日志：`~/.codex-session-delete/`
 - Provider 同步备份：`~/.codex/backups_state/provider-sync`
 
 ## 常见问题
 
-### Codex++ 菜单没出现
+### codex123 菜单没出现
 
-确认是从 `Codex++` 入口启动，而不是原版 Codex。也可以打开管理工具的“诊断”和“日志”页面查看注入状态。
+确认是从 `codex123` 入口启动，而不是原版 Codex。也可以打开管理工具的“诊断”和“日志”页面查看注入状态。
 
 ### 插件内显示后端连不上
 
@@ -301,17 +313,17 @@ Codex++ 通过 GitHub Release 发布安装包。Windows 会生成 NSIS 安装程
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:57321/backend/status -Body "{}" -ContentType "application/json"
 ```
 
-如果接口正常，但插件仍显示超时，通常是 Codex 页面里的 CDP bridge 或脚本缓存问题。重启 Codex++，或在管理工具里查看日志中的 `renderer.script_loaded`、`bridge.request`、`bridge.response`。
+如果接口正常，但插件仍显示超时，通常是 Codex 页面里的 CDP bridge 或脚本缓存问题。重启 codex123，或在管理工具里查看日志中的 `renderer.script_loaded`、`bridge.request`、`bridge.response`。
 
 ### Upstream worktree 和 Codex 原生创建有什么区别
 
-Codex++ 的 Upstream worktree 功能等价于先更新远端分支，再执行：
+codex123 的 Upstream worktree 功能等价于先更新远端分支，再执行：
 
 ```bash
 git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 ```
 
-这样新 worktree 从最新的远端跟踪分支开始，而不是从当前会话所在的本地 HEAD 开始。如果 Codex++ 无法安全识别当前 Codex 版本的原生 worktree 创建表单，请从 Codex++ 菜单中手动填写仓库路径、分支名、worktree 路径、remote 和 base branch。
+这样新 worktree 从最新的远端跟踪分支开始，而不是从当前会话所在的本地 HEAD 开始。如果 codex123 无法安全识别当前 Codex 版本的原生 worktree 创建表单，请从 codex123 菜单中手动填写仓库路径、分支名、worktree 路径、remote 和 base branch。
 
 ### macOS 提示无法打开或已损坏
 
@@ -349,7 +361,7 @@ crates/
   codex-plus-core/              启动、注入、配置、更新、安装、桥接等核心逻辑
   codex-plus-data/              会话数据、导出、Provider 同步
 scripts/installer/
-  windows/CodexPlusPlus.nsi     Windows NSIS 安装包
+  windows/codex123.nsi     Windows NSIS 安装包
   macos/package-dmg.sh          macOS DMG 打包
 ```
 
@@ -359,4 +371,4 @@ scripts/installer/
 
 ## 说明
 
-Codex++ 是外部增强工具，不修改 Codex App 原始文件。Codex App 更新后，如果页面结构变化，可能需要更新注入脚本。
+codex123 是外部增强工具，不修改 Codex App 原始文件。Codex App 更新后，如果页面结构变化，可能需要更新注入脚本。

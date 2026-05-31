@@ -5,7 +5,9 @@ use super::{
     install_root_or_default, option_or_current_exe,
 };
 
-const UNINSTALL_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\CodexPlusPlus";
+#[cfg(windows)]
+const UNINSTALL_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\codex123";
+#[cfg(windows)]
 const LEGACY_UNINSTALL_SUBKEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Codex++";
 
@@ -31,11 +33,11 @@ pub fn build_windows_entrypoint_plan(options: &InstallOptions) -> WindowsEntrypo
     let icon_path = default_icon_path();
     WindowsEntrypointPlan {
         silent_shortcut: install_root
-            .join("Codex++.lnk")
+            .join("codex123.lnk")
             .to_string_lossy()
             .to_string(),
         manager_shortcut: install_root
-            .join("Codex++ 管理工具.lnk")
+            .join("codex123 管理工具.lnk")
             .to_string_lossy()
             .to_string(),
         install_root: install_root.to_string_lossy().to_string(),
@@ -44,7 +46,7 @@ pub fn build_windows_entrypoint_plan(options: &InstallOptions) -> WindowsEntrypo
         icon_path: icon_path.to_string_lossy().to_string(),
         silent_icon_path: launcher_path.to_string_lossy().to_string(),
         manager_icon_path: manager_path.to_string_lossy().to_string(),
-        uninstall_key: "CodexPlusPlus".to_string(),
+        uninstall_key: "codex123".to_string(),
         legacy_uninstall_key: "Codex++".to_string(),
         remove_owned_data: options.remove_owned_data,
     }
@@ -58,13 +60,13 @@ pub fn install_shortcuts(options: &InstallOptions) -> anyhow::Result<()> {
     create_entrypoint_shortcut(
         PathBuf::from(&plan.silent_shortcut),
         PathBuf::from(&plan.launcher_path),
-        "Launch Codex++ silently",
+        "Launch codex123 silently",
         PathBuf::from(&plan.silent_icon_path),
     )?;
     create_entrypoint_shortcut(
         PathBuf::from(&plan.manager_shortcut),
         PathBuf::from(&plan.manager_path),
-        "Open Codex++ management tool",
+        "Open codex123 management tool",
         PathBuf::from(&plan.manager_icon_path),
     )?;
     write_uninstall_registration(&plan)?;
@@ -120,9 +122,9 @@ fn write_uninstall_registration(plan: &WindowsEntrypointPlan) -> anyhow::Result<
         .to_string_lossy()
         .to_string();
     for (name, value) in [
-        ("DisplayName", "Codex++".to_string()),
+        ("DisplayName", "codex123".to_string()),
         ("DisplayVersion", crate::version::VERSION.to_string()),
-        ("Publisher", "BigPizzaV3".to_string()),
+        ("Publisher", "jzy5999-cpu".to_string()),
         ("DisplayIcon", plan.manager_icon_path.clone()),
         ("InstallLocation", install_location),
         ("UninstallString", uninstall_command.clone()),
@@ -137,8 +139,8 @@ fn default_icon_path() -> PathBuf {
     std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
-        .map(|path| path.join("codex-plus-plus.ico"))
-        .unwrap_or_else(|| PathBuf::from("codex-plus-plus.ico"))
+        .map(|path| path.join("codex123.ico"))
+        .unwrap_or_else(|| PathBuf::from("codex123.ico"))
 }
 
 #[allow(dead_code)]

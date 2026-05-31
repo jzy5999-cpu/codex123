@@ -1,6 +1,6 @@
 use anyhow::Context;
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -474,7 +474,7 @@ pub async fn test_relay_profile(
         anyhow::bail!("API Key 不能为空");
     }
 
-    let client = crate::http_client::proxied_client("CodexPlusPlus/RelayTest")?;
+    let client = crate::http_client::proxied_client("codex123/RelayTest")?;
     let endpoint = match profile.protocol {
         RelayProtocol::Responses => format!("{base_url}/responses"),
         RelayProtocol::ChatCompletions => format!("{base_url}/chat/completions"),
@@ -850,6 +850,9 @@ fn normalize_config_model_provider(
         return Ok(ensure_trailing_newline(doc.to_string()));
     };
     if !is_custom_provider_id(&target_provider) || !provider_table_exists(&doc, &target_provider) {
+        return Ok(ensure_trailing_newline(doc.to_string()));
+    }
+    if target_provider == CODEX123_RELAY_PROVIDER {
         return Ok(ensure_trailing_newline(doc.to_string()));
     }
 
@@ -1467,9 +1470,7 @@ fn enforce_remote_relay_auth_contents(auth_contents: &str) -> anyhow::Result<Str
         .and_then(Value::as_str)
         .map(|mode| mode.eq_ignore_ascii_case("chatgpt"))
         .unwrap_or(false);
-    let has_login_secret = object
-        .get("tokens")
-        .is_some_and(tokens_have_login_secret);
+    let has_login_secret = object.get("tokens").is_some_and(tokens_have_login_secret);
     if !is_chatgpt || !has_login_secret {
         anyhow::bail!(
             "远控兼容中转模式需要保留官方 ChatGPT 登录态。请先用原版 Codex 登录 ChatGPT 账号，再启用该模式。"
@@ -1531,7 +1532,10 @@ fn relay_profile_base_url(profile: &RelayProfile) -> String {
 }
 
 fn relay_profile_api_key(profile: &RelayProfile) -> String {
-    if matches!(profile.relay_mode, RelayMode::Official | RelayMode::RemoteRelay) {
+    if matches!(
+        profile.relay_mode,
+        RelayMode::Official | RelayMode::RemoteRelay
+    ) {
         return experimental_bearer_token_from_config(&profile.config_contents)
             .ok()
             .flatten()
@@ -1622,6 +1626,7 @@ fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<Strin
 pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow::Result<()> {
     if profile.relay_mode == RelayMode::Official && !profile.official_mix_api_key {
         profile.config_contents.clear();
+        profile.auth_contents = official_auth_for_storage(&profile.auth_contents)?;
         profile.model.clear();
         profile.base_url.clear();
         profile.upstream_base_url.clear();
@@ -1634,7 +1639,10 @@ pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow
         validate_remote_relay_source_config(&profile.config_contents)?;
     }
     if !profile.config_contents.trim().is_empty()
-        || matches!(profile.relay_mode, RelayMode::PureApi | RelayMode::RemoteRelay)
+        || matches!(
+            profile.relay_mode,
+            RelayMode::PureApi | RelayMode::RemoteRelay
+        )
         || profile.official_mix_api_key
     {
         profile.config_contents = complete_relay_profile_config(profile)?;
@@ -1662,6 +1670,20 @@ pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow
     Ok(())
 }
 
+fn official_auth_for_storage(auth_contents: &str) -> anyhow::Result<String> {
+    let auth_contents = remove_openai_api_key_from_auth_contents(auth_contents)?;
+    if auth_contents.trim().is_empty() {
+        return Ok(String::new());
+    }
+    let value: Value =
+        serde_json::from_str(&auth_contents).with_context(|| "auth.json JSON 解析失败")?;
+    if value.as_object().is_some_and(Map::is_empty) {
+        Ok(String::new())
+    } else {
+        Ok(auth_contents)
+    }
+}
+
 fn validate_remote_relay_config(config_contents: &str) -> anyhow::Result<()> {
     let doc = parse_toml_document(config_contents)?;
     let provider_id = active_provider_id(&doc)
@@ -1671,7 +1693,9 @@ fn validate_remote_relay_config(config_contents: &str) -> anyhow::Result<()> {
         .and_then(Item::as_table)
         .and_then(|providers| providers.get(&provider_id))
         .and_then(Item::as_table)
-        .ok_or_else(|| anyhow::anyhow!("config.toml 缺少当前 model_provider 对应的 provider table"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("config.toml 缺少当前 model_provider 对应的 provider table")
+        })?;
     let wire_api = provider
         .get("wire_api")
         .and_then(Item::as_str)
@@ -1680,11 +1704,7 @@ fn validate_remote_relay_config(config_contents: &str) -> anyhow::Result<()> {
     if wire_api != "responses" {
         anyhow::bail!("远控兼容中转模式要求 wire_api = \"responses\"");
     }
-    if provider
-        .get("requires_openai_auth")
-        .and_then(Item::as_bool)
-        != Some(true)
-    {
+    if provider.get("requires_openai_auth").and_then(Item::as_bool) != Some(true) {
         anyhow::bail!("远控兼容中转模式要求 requires_openai_auth = true");
     }
     if provider
@@ -1722,14 +1742,16 @@ fn validate_remote_relay_source_config(config_contents: &str) -> anyhow::Result<
     else {
         return Ok(());
     };
-    if let Some(wire_api) = provider.get("wire_api").and_then(Item::as_str).map(str::trim) {
+    if let Some(wire_api) = provider
+        .get("wire_api")
+        .and_then(Item::as_str)
+        .map(str::trim)
+    {
         if wire_api != "responses" {
             anyhow::bail!("远控兼容中转模式要求 wire_api = \"responses\"");
         }
     }
-    if let Some(requires_openai_auth) = provider
-        .get("requires_openai_auth")
-        .and_then(Item::as_bool)
+    if let Some(requires_openai_auth) = provider.get("requires_openai_auth").and_then(Item::as_bool)
     {
         if !requires_openai_auth {
             anyhow::bail!("远控兼容中转模式要求 requires_openai_auth = true");

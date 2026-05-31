@@ -559,10 +559,11 @@ fn remove_linked_ccs_profiles_for_local_storage(settings: &mut BackendSettings) 
     settings
         .relay_profiles
         .retain(|profile| profile.linked_ccs_provider_id.trim().is_empty());
-    if !settings.ccs_link_enabled && !settings
-        .relay_profiles
-        .iter()
-        .any(|profile| profile.id == settings.active_relay_id)
+    if !settings.ccs_link_enabled
+        && !settings
+            .relay_profiles
+            .iter()
+            .any(|profile| profile.id == settings.active_relay_id)
     {
         settings.active_relay_id = settings
             .relay_profiles
@@ -1612,7 +1613,7 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                 );
             }
             ok(
-                    "纯 API 模式已写入：config.toml 已写入 provider，auth.json 已切换为当前供应商。",
+                "纯 API 模式已写入：config.toml 已写入 provider，auth.json 已切换为当前供应商。",
                 relay_payload(status, result.backup_path),
             )
         }
@@ -1887,7 +1888,9 @@ fn settings_payload_value() -> Result<SettingsPayload, (anyhow::Error, SettingsP
 
 fn fallback_settings_payload() -> SettingsPayload {
     SettingsPayload {
-        settings: settings_with_live_ccs_profiles(SettingsStore::default().load().unwrap_or_default()),
+        settings: settings_with_live_ccs_profiles(
+            SettingsStore::default().load().unwrap_or_default(),
+        ),
         settings_path: codex_plus_core::paths::default_settings_path()
             .to_string_lossy()
             .to_string(),
@@ -2337,6 +2340,7 @@ mod tests {
         let settings = BackendSettings {
             relay_common_config_contents: "[mcp_servers.context7]\ncommand = \"npx\"\n".to_string(),
             relay_profiles: vec![RelayProfile {
+                relay_mode: codex_plus_core::settings::RelayMode::MixedApi,
                 use_common_config: false,
                 config_contents: "model = \"gpt-5\"\n\n[mcp_servers.context7]\ncommand = \"npx\"\n"
                     .to_string(),
@@ -2385,10 +2389,10 @@ mod tests {
 
         let normalized = normalize_settings_before_save(settings);
 
-        assert_eq!(
-            normalized.relay_profiles[0].auth_contents,
-            r#"{"auth_mode":"chatgpt","tokens":{"access_token":"edited"}}"#
-        );
+        let auth: Value = serde_json::from_str(&normalized.relay_profiles[0].auth_contents)
+            .expect("official auth should remain valid JSON");
+        assert_eq!(auth["auth_mode"], "chatgpt");
+        assert_eq!(auth["tokens"]["access_token"], "edited");
         assert!(normalized.relay_profiles[0].config_contents.is_empty());
     }
 
@@ -2433,6 +2437,7 @@ enabled = true
 "#
             .to_string(),
             relay_profiles: vec![RelayProfile {
+                relay_mode: codex_plus_core::settings::RelayMode::MixedApi,
                 use_common_config: true,
                 config_contents: r#"model = "gpt-5"
 model_reasoning_effort = "high"
@@ -2469,6 +2474,7 @@ last_updated = "2026-05-25T11:52:46Z"
 "#
             .to_string(),
             relay_profiles: vec![RelayProfile {
+                relay_mode: codex_plus_core::settings::RelayMode::MixedApi,
                 use_common_config: true,
                 config_contents: r#"model = "gpt-5"
 model_reasoning_effort = "high"

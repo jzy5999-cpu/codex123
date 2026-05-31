@@ -1,15 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::Duration;
+
+#[cfg(windows)]
+use std::process::{Command, Stdio};
 
 pub const WATCHER_INTERVAL_SECONDS: f64 = 3.0;
 pub const CDP_PROBE_TIMEOUT_SECONDS: f64 = 0.5;
 pub const TAKEOVER_FAILURE_BACKOFF_SECONDS: f64 = 30.0;
-pub const WATCHER_RUN_NAME: &str = "CodexPlusPlusWatcher";
+pub const WATCHER_RUN_NAME: &str = "codex123Watcher";
 pub const WATCHER_RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-pub const WATCHER_STARTUP_SHORTCUT_NAME: &str = "CodexPlusPlusWatcher.lnk";
+pub const WATCHER_STARTUP_SHORTCUT_NAME: &str = "codex123Watcher.lnk";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatcherInstallPlan {
@@ -106,7 +108,7 @@ pub fn filter_killable_launcher_processes<'a>(
     processes
         .into_iter()
         .filter(|(process_id, _, exe_file)| {
-            !protected.contains(process_id) && exe_file.eq_ignore_ascii_case("codex-plus-plus.exe")
+            !protected.contains(process_id) && exe_file.eq_ignore_ascii_case("codex123.exe")
         })
         .map(|(process_id, _, _)| process_id)
         .collect()
@@ -210,7 +212,7 @@ fn create_startup_shortcut(launcher_path: &Path, arguments: &str) -> anyhow::Res
         target: launcher_path.to_path_buf(),
         arguments: arguments.to_string(),
         working_directory: launcher_path.parent().map(Path::to_path_buf),
-        description: "Codex++ watcher".to_string(),
+        description: "codex123 watcher".to_string(),
         icon: None,
         show_minimized: true,
     })

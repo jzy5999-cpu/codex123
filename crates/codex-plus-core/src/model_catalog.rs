@@ -43,7 +43,7 @@ pub async fn read_codex_model_catalog() -> Value {
         }
     }
     let env = std::env::vars().collect::<HashMap<_, _>>();
-    let client = match crate::http_client::proxied_client("CodexPlusPlus/1.0") {
+    let client = match crate::http_client::proxied_client("codex123/1.0") {
         Ok(client) => client,
         Err(error) => {
             return json!({
@@ -529,7 +529,7 @@ pub async fn fetch_relay_profile_model_ids(
         anyhow::bail!("Base URL 不能为空");
     }
     let endpoint = models_endpoint(&source.base_url);
-    let client = crate::http_client::proxied_client("CodexPlusPlus/1.0")?;
+    let client = crate::http_client::proxied_client("codex123/1.0")?;
     let (models, status) = fetch_models_from_source(&client, &source).await;
     if models.is_empty() {
         let message = status

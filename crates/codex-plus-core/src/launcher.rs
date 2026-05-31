@@ -228,7 +228,7 @@ where
 
         let status = launch_status(
             "running",
-            "Codex++ launcher ready",
+            "codex123 launcher ready",
             debug_port,
             helper_port,
             &app_dir,
