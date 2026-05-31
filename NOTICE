@@ -1,0 +1,27 @@
+codex123
+========
+
+codex123 is an independent, unofficial project derived from CodexPlusPlus:
+
+  https://github.com/BigPizzaV3/CodexPlusPlus
+
+The original CodexPlusPlus project provided the external launcher, manager,
+Chromium DevTools Protocol injection approach, installer layout, and much of
+the foundation that makes this project possible. codex123 keeps this lineage
+visible out of respect for the original project and its contributors.
+
+codex123 adds a remote-control-compatible relay mode, macOS arm64 focused
+packaging, and project branding aimed at a development-experience-first Codex
+workflow.
+
+This project is not affiliated with, endorsed by, or sponsored by OpenAI.
+Codex, ChatGPT, and related product names belong to their respective owners.
+
+codex123 does not modify the original Codex App installation files. It starts
+Codex through an external launcher and injects enhancement scripts through the
+Chromium DevTools Protocol.
+
+The mobile ChatGPT remote-control entry point, account eligibility, and remote
+session availability are controlled by OpenAI. codex123 only aims to preserve
+local configuration conditions that do not break the official ChatGPT login
+state.

@@ -16,7 +16,18 @@
   <img alt="Tauri" src="https://img.shields.io/badge/tauri-2.x-24C8DB">
 </p>
 
-codex123 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
+codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动器和管理工具。项目目标是更好地使用 Codex：保留官方 ChatGPT 登录态，尽量降低中转配置对远程控制能力的破坏，同时继续使用外部 launcher 和 Chromium DevTools Protocol 注入增强脚本，不直接修改 Codex App 原始安装文件。
+
+本项目致敬并基于 [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。CodexPlusPlus 提供了外部 launcher、管理工具、CDP 注入、安装包结构等核心基础；`codex123` 在此基础上加入远控兼容中转模式，并把第一版交付重点放在 macOS Apple Silicon。项目也参考了其他开源工具的实践，优先服务个人开发工作流。
+
+`codex123` 不是 OpenAI 官方项目，也不与 OpenAI 存在隶属、赞助或背书关系。Codex、ChatGPT 及相关名称归其各自权利方所有。
+
+## 当前边界
+
+- 目前仅提供 macOS Apple Silicon 版本。
+- 第一版使用本地构建和 ad-hoc 签名，不做 Apple Developer ID 公证。
+- 手机 ChatGPT 远程控制入口、账号资格和远程会话能力由 OpenAI 官方控制，`codex123` 不能承诺 100% 可用。
+- 本项目只保证本地配置尽量不破坏官方 ChatGPT 登录态，并保持中转请求与 CDP 注入增强同时可用。
 
 ## codex123 远控兼容中转
 
@@ -85,6 +96,12 @@ BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 1.1
 ```
 
 生成文件位于 `dist/macos/codex123-1.1.8+1-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+
+## 开源与致谢
+
+`codex123` 使用 MIT License 开源。上游来源和本地改动记录见 [UPSTREAM.md](UPSTREAM.md)，项目归属和免责声明见 [NOTICE](NOTICE)。
+
+特别感谢 [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。没有 CodexPlusPlus 对外部启动、管理工具、CDP 注入和安装体验的探索，`codex123` 不会这么快成形。
 
 ## 赞助商
 <a href="mailto:1727532@qq.com">想显示在下方？</a>

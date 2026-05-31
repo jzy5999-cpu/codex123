@@ -16,7 +16,18 @@
   <img alt="Tauri" src="https://img.shields.io/badge/tauri-2.x-24C8DB">
 </p>
 
-codex123 is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
+codex123 is an independent, unofficial, development-experience-first external launcher and manager for the Codex App. Its goal is to make Codex easier to use: preserve the official ChatGPT login state, reduce the risk of relay configuration breaking remote-control prerequisites, and keep the external launcher plus Chromium DevTools Protocol injection path without modifying the original Codex App installation files.
+
+This project is a tribute to and derivative of [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). CodexPlusPlus provided the external launcher, manager, CDP injection approach, installer structure, and much of the foundation that made this project possible. codex123 adds a remote-control-compatible relay mode and focuses the first deliverable on macOS Apple Silicon. It also learns from other open-source tooling practices and prioritizes personal development workflows.
+
+codex123 is not an official OpenAI project and is not affiliated with, sponsored by, or endorsed by OpenAI. Codex, ChatGPT, and related names belong to their respective owners.
+
+## Current Scope
+
+- Only macOS Apple Silicon is supported for now.
+- The first version uses local builds and ad-hoc signing, without Apple Developer ID notarization.
+- The ChatGPT mobile remote-control entry point, account eligibility, and remote session availability are controlled by OpenAI; codex123 cannot guarantee 100% availability.
+- This project only aims to keep local configuration from breaking the official ChatGPT login state while keeping relay requests and CDP injection enhancements usable together.
 
 ## Quick Start
 
@@ -44,6 +55,12 @@ BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 1.1
 ```
 
 The generated file is `dist/macos/codex123-1.1.8+1-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+
+## Open Source and Thanks
+
+codex123 is released under the MIT License. See [UPSTREAM.md](UPSTREAM.md) for upstream source and local change notes, and [NOTICE](NOTICE) for attribution and disclaimers.
+
+Special thanks to [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). Without CodexPlusPlus exploring the external launcher, manager, CDP injection, and installer experience, codex123 would not have taken shape this quickly.
 
 ## Sponsors
 
