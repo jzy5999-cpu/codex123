@@ -175,12 +175,14 @@ fn launcher_builds_debug_arguments_and_commands() {
         build_codex_arguments(9229, &[]),
         vec![
             "--remote-debugging-port=9229".to_string(),
+            "--remote-debugging-address=127.0.0.1".to_string(),
             "--remote-allow-origins=http://127.0.0.1:9229".to_string(),
         ]
     );
     let command = build_codex_command(&app_dir, 9229, &[]);
     assert_eq!(command[1], "--remote-debugging-port=9229");
-    assert_eq!(command[2], "--remote-allow-origins=http://127.0.0.1:9229");
+    assert_eq!(command[2], "--remote-debugging-address=127.0.0.1");
+    assert_eq!(command[3], "--remote-allow-origins=http://127.0.0.1:9229");
 }
 
 #[test]
@@ -196,6 +198,7 @@ fn launcher_appends_extra_codex_arguments_after_debug_arguments() {
         build_codex_arguments(9229, &extra_args),
         vec![
             "--remote-debugging-port=9229".to_string(),
+            "--remote-debugging-address=127.0.0.1".to_string(),
             "--remote-allow-origins=http://127.0.0.1:9229".to_string(),
             "--force_high_performance_gpu".to_string(),
             "--enable-features=UseOzonePlatform".to_string(),
@@ -203,9 +206,10 @@ fn launcher_appends_extra_codex_arguments_after_debug_arguments() {
     );
     let command = build_codex_command(&app_dir, 9229, &extra_args);
     assert_eq!(command[1], "--remote-debugging-port=9229");
-    assert_eq!(command[2], "--remote-allow-origins=http://127.0.0.1:9229");
-    assert_eq!(command[3], "--force_high_performance_gpu");
-    assert_eq!(command[4], "--enable-features=UseOzonePlatform");
+    assert_eq!(command[2], "--remote-debugging-address=127.0.0.1");
+    assert_eq!(command[3], "--remote-allow-origins=http://127.0.0.1:9229");
+    assert_eq!(command[4], "--force_high_performance_gpu");
+    assert_eq!(command[5], "--enable-features=UseOzonePlatform");
 }
 
 #[test]
@@ -222,7 +226,7 @@ fn launcher_constructs_windows_packaged_activation_without_real_app() {
         build_packaged_activation(&app_dir, 9229, &[]).unwrap(),
         CodexLaunch::PackagedActivation {
             app_user_model_id: "OpenAI.Codex_2p2nqsd0c76g0!App".to_string(),
-            arguments: "--remote-debugging-port=9229 --remote-allow-origins=http://127.0.0.1:9229"
+            arguments: "--remote-debugging-port=9229 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9229"
                 .to_string(),
             process_id: None,
         }
@@ -241,7 +245,7 @@ fn launcher_packaged_activation_appends_extra_codex_arguments() {
         CodexLaunch::PackagedActivation {
             app_user_model_id: "OpenAI.Codex_2p2nqsd0c76g0!App".to_string(),
             arguments:
-                "--remote-debugging-port=9229 --remote-allow-origins=http://127.0.0.1:9229 --force_high_performance_gpu"
+                "--remote-debugging-port=9229 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9229 --force_high_performance_gpu"
                     .to_string(),
             process_id: None,
         }
@@ -292,6 +296,7 @@ fn launcher_macos_open_command_appends_extra_codex_arguments_after_args() {
         &command[args_index + 1..],
         &[
             "--remote-debugging-port=9229".to_string(),
+            "--remote-debugging-address=127.0.0.1".to_string(),
             "--remote-allow-origins=http://127.0.0.1:9229".to_string(),
             "--force_high_performance_gpu".to_string(),
         ]

@@ -1011,6 +1011,7 @@ fn sanitize_diagnostic_event(event: &str) -> String {
 pub fn build_codex_arguments(debug_port: u16, extra_args: &[String]) -> Vec<String> {
     let mut args = vec![
         format!("--remote-debugging-port={debug_port}"),
+        "--remote-debugging-address=127.0.0.1".to_string(),
         format!("--remote-allow-origins=http://127.0.0.1:{debug_port}"),
     ];
     args.extend(normalize_codex_extra_args(extra_args));

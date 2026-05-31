@@ -18,24 +18,38 @@ pub struct CdpTarget {
 }
 
 pub async fn list_targets(debug_port: u16) -> anyhow::Result<Vec<CdpTarget>> {
-    let url = format!("http://127.0.0.1:{debug_port}/json");
+    let urls = [
+        format!("http://127.0.0.1:{debug_port}/json"),
+        format!("http://[::1]:{debug_port}/json"),
+    ];
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(CDP_HTTP_TIMEOUT)
         .build()
         .context("failed to build CDP HTTP client")?;
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .context("failed to query CDP targets")?
-        .error_for_status()
-        .context("CDP target query failed")?;
 
-    response
-        .json::<Vec<CdpTarget>>()
-        .await
-        .context("failed to deserialize CDP targets")
+    let mut last_error = None;
+    for url in urls {
+        match client.get(&url).send().await {
+            Ok(response) => {
+                let response = response
+                    .error_for_status()
+                    .with_context(|| format!("CDP target query failed at {url}"))?;
+                return response
+                    .json::<Vec<CdpTarget>>()
+                    .await
+                    .context("failed to deserialize CDP targets");
+            }
+            Err(error) => {
+                last_error = Some(error);
+            }
+        }
+    }
+
+    Err(anyhow::Error::from(
+        last_error.expect("CDP target URL list should not be empty"),
+    ))
+    .context("failed to query CDP targets")
 }
 
 pub fn pick_page_target(targets: &[CdpTarget]) -> anyhow::Result<CdpTarget> {

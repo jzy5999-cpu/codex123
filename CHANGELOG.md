@@ -1,5 +1,30 @@
 # 更新日志
 
+## 0.1.3 - 2026-06-01
+
+- 移除 README 顶部旧 Codex++ 图标。
+- 移除 README 和管理工具/注入菜单中的赞助商展示，只保留普通推荐内容。
+
+## 0.1.2 - 2026-06-01
+
+- 移除 README 和注入菜单中的原 Codex++ 交流、Discord 与赞赏入口。
+- 管理工具中的 `auth.json` 默认隐藏 token 和 API Key，需要手动显示后才能编辑。
+- 用户脚本配置目录迁移为 `codex123`，并兼容迁移旧 `Codex++` 目录。
+- macOS DMG 打包完成后自动清理临时 stage 目录，避免本地残留重复 bundle id。
+
+## 0.1.1 - 2026-06-01
+
+- 将 Codex 页面右上角注入菜单和弹窗中的用户可见品牌从 `Codex++` 改为 `codex123`。
+- 将注入菜单的问题反馈链接改为 `jzy5999-cpu/codex123`。
+
+## 0.1.0 - 2026-06-01
+
+- codex123 初始版本，基于 CodexPlusPlus，面向 macOS Apple Silicon 本机安装使用。
+- 新增远控兼容中转模式，保持 ChatGPT 官方登录态，同时把中转 Key 写入 provider 配置。
+- 修复 macOS CDP 连接稳定性，启动时指定 `127.0.0.1` 调试地址，并在查询目标时兼容 IPv4 / IPv6 loopback。
+- 将 codex123 状态目录迁移到 `~/.codex123/`，并兼容读取旧 `~/.codex-session-delete/settings.json`。
+- 更新检查在尚未发布 GitHub Release 时显示无可用更新，而不是直接报错。
+
 ## 1.1.8 - 2026-05-26
 
 - 新增上游分支 worktree 支持，可从上游仓库/分支创建和选择独立工作区。

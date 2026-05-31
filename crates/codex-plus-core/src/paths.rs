@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
-const APP_STATE_DIR: &str = ".codex-session-delete";
+const APP_STATE_DIR: &str = ".codex123";
+const LEGACY_APP_STATE_DIR: &str = ".codex-session-delete";
 const SETTINGS_FILE: &str = "settings.json";
 const LATEST_STATUS_FILE: &str = "latest-status.json";
-const DIAGNOSTIC_LOG_FILE: &str = "codex-plus.log";
+const DIAGNOSTIC_LOG_FILE: &str = "codex123.log";
 
 pub fn default_app_state_dir() -> PathBuf {
     if let Some(home_dir) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) {
@@ -14,11 +15,23 @@ pub fn default_app_state_dir() -> PathBuf {
     PathBuf::from(APP_STATE_DIR)
 }
 
+pub fn legacy_app_state_dir() -> PathBuf {
+    if let Some(home_dir) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) {
+        return home_dir.join(LEGACY_APP_STATE_DIR);
+    }
+
+    PathBuf::from(LEGACY_APP_STATE_DIR)
+}
+
 pub fn default_settings_path() -> PathBuf {
     if let Some(path) = settings_path_for_tests() {
         return path;
     }
     default_app_state_dir().join(SETTINGS_FILE)
+}
+
+pub fn legacy_settings_path() -> PathBuf {
+    legacy_app_state_dir().join(SETTINGS_FILE)
 }
 
 pub fn default_latest_status_path() -> PathBuf {
@@ -55,20 +68,20 @@ mod tests {
     fn default_settings_path_uses_app_state_directory() {
         let path = default_settings_path();
 
-        assert!(path.ends_with(".codex-session-delete/settings.json"));
+        assert!(path.ends_with(".codex123/settings.json"));
     }
 
     #[test]
     fn default_latest_status_path_uses_app_state_directory() {
         let path = default_latest_status_path();
 
-        assert!(path.ends_with(".codex-session-delete/latest-status.json"));
+        assert!(path.ends_with(".codex123/latest-status.json"));
     }
 
     #[test]
     fn default_diagnostic_log_path_uses_app_state_directory() {
         let path = default_diagnostic_log_path();
 
-        assert!(path.ends_with(".codex-session-delete/codex-plus.log"));
+        assert!(path.ends_with(".codex123/codex123.log"));
     }
 }

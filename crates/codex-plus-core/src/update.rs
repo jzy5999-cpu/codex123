@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -166,19 +167,33 @@ pub fn select_update_asset(assets: &[(String, String)]) -> Option<ReleaseAsset> 
 pub async fn fetch_latest_release(latest_json_url: &str) -> anyhow::Result<Release> {
     let client =
         crate::http_client::proxied_client(&format!("codex123/{}", crate::version::VERSION))?;
-    let payload = client
+    let response = client
         .get(latest_json_url)
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
         .await?;
+    if response.status() == StatusCode::NOT_FOUND {
+        anyhow::bail!("未发布 GitHub Release：latest.json 不存在");
+    }
+    let payload = response.error_for_status()?.json::<Value>().await?;
     release_from_latest_json_payload(&payload)
 }
 
 pub async fn check_for_update(current_version: &str) -> anyhow::Result<UpdateCheck> {
-    let release = fetch_latest_release(DEFAULT_LATEST_JSON_URL).await?;
+    let release = match fetch_latest_release(DEFAULT_LATEST_JSON_URL).await {
+        Ok(release) => release,
+        Err(error) if error.to_string().contains("latest.json 不存在") => {
+            return Ok(UpdateCheck {
+                current_version: current_version.to_string(),
+                latest_version: None,
+                release_summary: "尚未发布 GitHub Release，暂时没有可用更新。".to_string(),
+                asset_name: None,
+                asset_url: None,
+                update_available: false,
+            });
+        }
+        Err(error) => return Err(error),
+    };
     let update_available = is_newer_version(&release.version, current_version)?;
     Ok(UpdateCheck {
         current_version: current_version.to_string(),

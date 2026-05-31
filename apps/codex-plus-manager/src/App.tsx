@@ -31,7 +31,6 @@ import {
   KeyRound,
   LayoutDashboard,
   Link2,
-  MessageCircle,
   FileCode2,
   Moon,
   Network,
@@ -1795,9 +1794,7 @@ function ProviderSyncScreen({
 }
 
 function RecommendationsScreen({ ads, actions }: { ads: AdsResult | null; actions: Actions }) {
-  const items = (ads?.ads ?? []).filter((ad) => !isExpiredAd(ad));
-  const sponsors = items.filter((ad) => ad.type === "sponsor");
-  const normal = items.filter((ad) => ad.type === "normal");
+  const items = (ads?.ads ?? []).filter((ad) => !isExpiredAd(ad) && ad.type === "normal");
   return (
     <>
       <Panel>
@@ -1806,7 +1803,7 @@ function RecommendationsScreen({ ads, actions }: { ads: AdsResult | null; action
           <div className="recommend-hero">
             <div>
               <strong>{ads ? `已加载 ${items.length} 条推荐` : "尚未加载推荐内容"}</strong>
-              <span>内容来自 BigPizzaV3/Ad-List，分为赞助商推荐和普通推荐。</span>
+              <span>内容来自远端推荐源，仅展示普通推荐。</span>
             </div>
             <Button onClick={() => void actions.refreshAds()}>
               <RefreshCw className="h-4 w-4" />
@@ -1816,15 +1813,9 @@ function RecommendationsScreen({ ads, actions }: { ads: AdsResult | null; action
         </CardContent>
       </Panel>
       <Panel>
-        <CardHead title="赞助商推荐" detail={`${sponsors.length} 条`} />
+        <CardHead title="推荐列表" detail={`${items.length} 条`} />
         <CardContent>
-          <AdGrid actions={actions} ads={sponsors} empty="暂无赞助商推荐。" />
-        </CardContent>
-      </Panel>
-      <Panel>
-        <CardHead title="普通推荐" detail={`${normal.length} 条`} />
-        <CardContent>
-          <AdGrid actions={actions} ads={normal} empty="暂无普通推荐。" />
+          <AdGrid actions={actions} ads={items} empty="暂无推荐内容。" />
         </CardContent>
       </Panel>
     </>
@@ -1982,10 +1973,6 @@ function AboutScreen({
             <Button onClick={() => void actions.openExternalUrl("https://github.com/jzy5999-cpu/codex123/issues")} variant="secondary">
               <ExternalLink className="h-4 w-4" />
               反馈问题
-            </Button>
-            <Button onClick={() => void actions.openExternalUrl("https://discord.gg/y96kX7A76v")} variant="secondary">
-              <MessageCircle className="h-4 w-4" />
-              Discord
             </Button>
           </Toolbar>
         </CardContent>
@@ -2671,7 +2658,7 @@ function RelayProfileEditor({
       </div>
       {showApiFields && profile.protocol === "chatCompletions" ? (
         <div className="hint-line relay-protocol-hint">
-          <MessageCircle className="h-4 w-4" />
+          <Info className="h-4 w-4" />
           <span>此上游会通过本地 127.0.0.1:57321 转成 Responses API，需要从 codex123 启动 Codex。</span>
         </div>
       ) : null}
@@ -2878,10 +2865,12 @@ function SyncedTextarea({
   value,
   onValueChange,
   className,
+  readOnly = false,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   className?: string;
+  readOnly?: boolean;
 }) {
   const [localValue, setLocalValue] = useState(value);
   const isFocusedRef = useRef(false);
@@ -2903,6 +2892,7 @@ function SyncedTextarea({
         setLocalValue(latestExternalValueRef.current);
       }}
       onChange={(event) => {
+        if (readOnly) return;
         const next = event.currentTarget.value;
         setLocalValue(next);
         onValueChange(next);
@@ -2910,6 +2900,7 @@ function SyncedTextarea({
       onFocus={() => {
         isFocusedRef.current = true;
       }}
+      readOnly={readOnly}
       spellCheck={false}
     />
   );
@@ -2936,6 +2927,7 @@ function RelayFileEditors({
 }) {
   const configPreview = effectiveRelayConfigPreview(profile, form, contextProfile);
   const entries = contextEntriesForProfile(form, contextProfile);
+  const [showAuthContents, setShowAuthContents] = useState(false);
   return (
     <div className="relay-file-grid">
       <div className="relay-file-panel">
@@ -3008,17 +3000,33 @@ function RelayFileEditors({
         <div className="relay-file-head">
           <div>
             <strong>auth.json</strong>
-            <span>{isActive ? "当前使用中：打开时从 ~/.codex/auth.json 回填，保存后会作为此供应商 auth 存档" : "切换到此供应商时会写入 ~/.codex/auth.json"}</span>
+            <span>{showAuthContents ? "正在显示原始 auth.json，请勿复制到公开渠道。" : "默认隐藏 token 和 API Key；需要手动编辑时再显示原文。"}</span>
           </div>
+          <Button
+            onClick={() => setShowAuthContents((value) => !value)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {showAuthContents ? "隐藏敏感内容" : "显示并编辑"}
+          </Button>
         </div>
         <SyncedTextarea
           className="relay-file-textarea"
-          value={profile.authContents}
+          readOnly={!showAuthContents}
+          value={showAuthContents ? profile.authContents : redactAuthContents(profile.authContents)}
           onValueChange={(value) => onProfileChange(deriveRelayProfileFromFiles({ ...profile, authContents: value }))}
         />
       </div>
     </div>
   );
+}
+
+function redactAuthContents(value: string): string {
+  if (!value.trim()) return "";
+  return value
+    .replace(/("OPENAI_API_KEY"\s*:\s*)"[^"]*"/g, "$1\"<redacted>\"")
+    .replace(/("(?:access_token|refresh_token|id_token)"\s*:\s*)"[^"]*"/g, "$1\"<redacted>\"");
 }
 
 function ModeSelector({ launchMode, actions }: { launchMode: LaunchMode; actions: Actions }) {
@@ -3234,7 +3242,7 @@ function routeSubtitle(route: Route) {
     enhance: "会话删除、导出、项目移动和脚本能力",
     userScripts: "内置和用户自定义脚本清单",
     providerSync: "切换模式后让旧对话重新可见",
-    recommendations: "赞助商推荐与普通推荐",
+    recommendations: "普通推荐内容",
     maintenance: "入口安装、修复、Watcher 与手动启动",
     about: "版本信息、项目链接、GitHub Release 更新、日志与诊断",
     settings: "主题、命令包装器和启动参数",

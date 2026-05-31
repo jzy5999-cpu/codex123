@@ -1,10 +1,6 @@
 # codex123
 
 <p align="center">
-  <img src="docs/images/codex-plus-plus.png" alt="codex123 icon" width="160">
-</p>
-
-<p align="center">
   <a href="README.md">中文</a> | English
 </p>
 
@@ -51,93 +47,16 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 1.1.8+1 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.1.3 arm64
 ```
 
-The generated file is `dist/macos/codex123-1.1.8+1-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+The generated file is `dist/macos/codex123-0.1.3-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
 
 ## Open Source and Thanks
 
 codex123 is released under the MIT License. See [UPSTREAM.md](UPSTREAM.md) for upstream source and local change notes, and [NOTICE](NOTICE) for attribution and disclaimers.
 
 Special thanks to [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). Without CodexPlusPlus exploring the external launcher, manager, CDP injection, and installer experience, codex123 would not have taken shape this quickly.
-
-## Sponsors
-
-<p align="center">
-  <a href="mailto:1727532@qq.com">Want to be shown below?</a>
-</p>
-<table>
-  <tr>
-    <th width="180">🏆 Sponsor 🏆</th>
-    <th>Introduction</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://jojocode.com/">
-        <img src="docs/images/sponsor-jojocode.svg" alt="JOJO Code" width="150">
-      </a>
-    </td>
-    <td><a href="https://jojocode.com/"><strong>JOJO Code | Official codex123 Relay</strong></a><br>Thanks to JOJO Code for sponsoring this project! JOJO Code is the official codex123 relay service. It is built for daily development and team collaboration, providing stable Codex API access for quick onboarding, long-term use, and project workflows.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://aigocode.com/invite/codex123">
-        <img src="docs/images/sponsor-aigocode.png" alt="AIGoCode" width="150">
-      </a>
-    </td>
-    <td><a href="https://aigocode.com/invite/codex123"><strong>AIGoCode</strong></a><br>Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform integrating the latest Claude Code, Codex, and Gemini models, providing stable, efficient, and cost-effective AI programming services. It offers flexible subscription plans, direct access in China, no extra network setup, and fast responses. AIGoCode provides a special benefit for codex123 users: users who <a href="https://aigocode.com/invite/codex123">register through this link</a> can receive an extra 10% bonus credit on their first recharge.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.packyapi.com/">
-        <img src="docs/images/sponsor-packycode.png" alt="PackyCode" width="150">
-      </a>
-    </td>
-    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>Thanks to PackyCode for sponsoring this project! PackyCode is a stable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides a special discount for users of this software: register through this link and enter the "codex123" coupon code when recharging to get 10% off your first recharge.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://apikey.fun/register?aff=CODEX">
-        <img src="docs/images/sponsor-apikey-fun.png" alt="APIKEY.FUN" width="150">
-      </a>
-    </td>
-    <td><a href="https://apikey.fun/register?aff=CODEX"><strong>APIKEY.FUN</strong></a><br>Thanks to APIKEY.FUN for sponsoring this project! APIKEY.FUN is an AI relay platform focused on open, stable, and cost-effective access to mainstream global models. It supports API relay services for Claude, OpenAI, Gemini, and other popular models, with prices as low as 7% of the official rate. Register through the dedicated link to receive up to a permanent 5% recharge discount.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://runapi.co/register?aff=AWJq">
-        <img src="docs/images/sponsor-runapi.png" alt="RunAPI" width="150">
-      </a>
-    </td>
-    <td><a href="https://runapi.co/register?aff=AWJq"><strong>RunAPI</strong></a><br>Thanks to RunAPI for sponsoring this project! RunAPI is an efficient and stable OpenRouter alternative API platform. One API key can access OpenAI, Claude, Gemini, DeepSeek, Grok, and 150+ mainstream models at prices as low as 10% of the original rate, with seamless compatibility for tools such as Claude Code and OpenClaw.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.0029.org/?promo=AFF11F">
-        <img src="docs/images/sponsor-0029.svg" alt="0029 Cloud Bridge" width="150">
-      </a>
-    </td>
-    <td><a href="https://www.0029.org/?promo=AFF11F"><strong>0029 Cloud Bridge | Codex API Relay Station (gpt5.5 gpt-image-2)</strong></a><br>Supports individual and enterprise access. Monthly plans and pay-as-you-go billing are available, with Pro/Plus account pools, stable site-wide APIs, and 24/7 technical support.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://rawchat.cn">
-        <img src="docs/images/sponsor-rawchat.svg" alt="RawChat" width="150">
-      </a>
-    </td>
-    <td><a href="https://rawchat.cn"><strong>RawChat | Codex Relay Station</strong></a><br>A long-running relay station with monthly plans, low-rate usage, high cache hit rates, Pro/Plus account pools, and dedicated all-day maintenance.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://coder.visioncoder.cn">
-        <img src="https://coder.visioncoder.cn/logo.png" alt="VisionCoder" width="110">
-      </a>
-    </td>
-    <td><a href="https://coder.visioncoder.cn"><strong>VisionCoder Developer Platform</strong></a><br>Thanks to VisionCoder for supporting this project. VisionCoder Developer Platform is a reliable and efficient API relay service provider, offering access to mainstream AI models such as Claude Code, Codex, and Gemini. It helps developers and teams integrate AI capabilities more easily and improve productivity. VisionCoder is also offering our users a limited-time <a href="https://coder.visioncoder.cn">Token Plan</a> promotion: buy 1 month and get 1 month free.</td>
-  </tr>
-</table>
-
 
 ## Highlights
 
@@ -208,7 +127,8 @@ The manager's About page can check and start updates. When the silent launcher f
 - Codex config: `~/.codex/config.toml`
 - Codex auth state: `~/.codex/auth.json`
 - Codex local database: `~/.codex/state_5.sqlite`
-- codex123 state and logs: `~/.codex-session-delete/`
+- codex123 state and logs: `~/.codex123/`
+- Legacy compatibility: if `~/.codex123/settings.json` does not exist, the manager reads `~/.codex-session-delete/settings.json`; saving writes to the new path.
 - Provider Sync backups: `~/.codex/backups_state/provider-sync`
 
 ## FAQ
@@ -276,19 +196,6 @@ scripts/installer/
   windows/codex123.nsi     Windows NSIS installer
   macos/package-dmg.sh          macOS DMG packager
 ```
-
-## Community and Support
-
-Scan the QR code to join the codex123 discussion group, report issues, share usage notes, or suggest features:
-
-<img src="docs/images/discussion-group-qr.jpg" alt="codex123 discussion group QR code" width="260">
-
-If codex123 has helped you, you can buy me a coffee or send a small tip to support continued maintenance.
-
-<p align="center">
-  <img src="docs/images/sponsor-alipay.jpg" alt="Alipay sponsor QR code" width="220">
-  <img src="docs/images/sponsor-wechat.jpg" alt="WeChat sponsor QR code" width="220">
-</p>
 
 ## Friendly Links
 

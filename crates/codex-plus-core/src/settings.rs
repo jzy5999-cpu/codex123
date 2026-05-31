@@ -347,6 +347,25 @@ impl SettingsStore {
     pub fn load(&self) -> anyhow::Result<BackendSettings> {
         let contents = match fs::read_to_string(&self.path) {
             Ok(contents) => contents,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && self.path == crate::paths::default_settings_path() =>
+            {
+                match fs::read_to_string(crate::paths::legacy_settings_path()) {
+                    Ok(contents) => contents,
+                    Err(legacy_error) if legacy_error.kind() == std::io::ErrorKind::NotFound => {
+                        return Ok(BackendSettings::default());
+                    }
+                    Err(legacy_error) => {
+                        return Err(legacy_error).with_context(|| {
+                            format!(
+                                "failed to read legacy settings {}",
+                                crate::paths::legacy_settings_path().display()
+                            )
+                        });
+                    }
+                }
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(BackendSettings::default());
             }

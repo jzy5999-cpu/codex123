@@ -8,6 +8,7 @@ use codex_plus_core::models::{DeleteResult, ExportResult, SessionRef};
 use codex_plus_core::routes::{BridgeContext, BridgeDataService, BridgeRuntimeService};
 use codex_plus_core::user_scripts::UserScriptManager;
 use serde_json::{Value, json};
+use std::fs;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -578,19 +579,28 @@ fn default_user_script_manager() -> UserScriptManager {
 }
 
 fn default_user_scripts_config_dir() -> PathBuf {
-    if cfg!(windows) {
+    let base = if cfg!(windows) {
         if let Some(roaming) = std::env::var_os("APPDATA") {
-            return PathBuf::from(roaming).join("Codex++");
+            PathBuf::from(roaming)
+        } else if let Some(home) =
+            directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf())
+        {
+            home.join("AppData").join("Roaming")
+        } else {
+            PathBuf::from(".")
         }
-        if let Some(home) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) {
-            return home.join("AppData").join("Roaming").join("Codex++");
-        }
+    } else {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| directories::BaseDirs::new().map(|dirs| dirs.home_dir().join(".config")))
+            .unwrap_or_else(|| PathBuf::from(".config"))
+    };
+    let next = base.join("codex123");
+    let legacy = base.join("Codex++");
+    if !next.exists() && legacy.exists() {
+        let _ = fs::rename(&legacy, &next);
     }
-    std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| directories::BaseDirs::new().map(|dirs| dirs.home_dir().join(".config")))
-        .unwrap_or_else(|| PathBuf::from(".config"))
-        .join("Codex++")
+    next
 }
 
 #[cfg(test)]

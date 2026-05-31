@@ -18,6 +18,10 @@ ICON_ICNS="$DIST/$ICON_NAME"
 
 rm -rf "$DIST"
 mkdir -p "$STAGE"
+cleanup_stage() {
+  rm -rf "$STAGE"
+}
+trap cleanup_stage EXIT
 
 prepare_icon() {
   local iconset="$DIST/codex123.iconset"

@@ -2000,16 +2000,28 @@ fn default_user_script_manager() -> UserScriptManager {
 }
 
 fn user_scripts_config_dir() -> PathBuf {
-    if cfg!(windows) {
+    let base = if cfg!(windows) {
         if let Some(roaming) = std::env::var_os("APPDATA") {
-            return PathBuf::from(roaming).join("Codex++");
+            PathBuf::from(roaming)
+        } else if let Some(home) =
+            directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf())
+        {
+            home.join("AppData").join("Roaming")
+        } else {
+            PathBuf::from(".")
         }
+    } else {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| directories::BaseDirs::new().map(|dirs| dirs.home_dir().join(".config")))
+            .unwrap_or_else(|| PathBuf::from(".config"))
+    };
+    let next = base.join("codex123");
+    let legacy = base.join("Codex++");
+    if !next.exists() && legacy.exists() {
+        let _ = fs::rename(&legacy, &next);
     }
-    std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| directories::BaseDirs::new().map(|dirs| dirs.home_dir().join(".config")))
-        .unwrap_or_else(|| PathBuf::from(".config"))
-        .join("Codex++")
+    next
 }
 
 fn builtin_user_scripts_dir() -> PathBuf {
@@ -2051,7 +2063,7 @@ fn diagnostics_report() -> String {
         "generatedAtMs": generated_at_ms,
         "version": codex_plus_core::version::VERSION,
         "overview": overview.payload,
-        "settings": settings,
+        "settings": redacted_settings_report(&settings),
         "logs": {
             "diagnosticLogPath": codex_plus_core::paths::default_diagnostic_log_path(),
             "latestStatusPath": codex_plus_core::paths::default_latest_status_path()
@@ -2062,6 +2074,72 @@ fn diagnostics_report() -> String {
         }
     }))
     .unwrap_or_else(|error| format!("诊断报告序列化失败：{error}"))
+}
+
+fn redacted_settings_report(settings: &BackendSettings) -> Value {
+    json!({
+        "codexAppPath": settings.codex_app_path,
+        "codexExtraArgs": settings.codex_extra_args,
+        "providerSyncEnabled": settings.provider_sync_enabled,
+        "relayProfilesEnabled": settings.relay_profiles_enabled,
+        "ccsLinkEnabled": settings.ccs_link_enabled,
+        "enhancementsEnabled": settings.enhancements_enabled,
+        "codexGoalsEnabled": settings.codex_goals_enabled,
+        "launchMode": settings.launch_mode,
+        "relayBaseUrl": settings.relay_base_url,
+        "relayApiKey": secret_state(&settings.relay_api_key),
+        "activeRelayId": settings.active_relay_id,
+        "relayTestModel": settings.relay_test_model,
+        "cliWrapperEnabled": settings.cli_wrapper_enabled,
+        "cliWrapperBaseUrl": settings.cli_wrapper_base_url,
+        "cliWrapperApiKey": secret_state(&settings.cli_wrapper_api_key),
+        "cliWrapperApiKeyEnv": settings.cli_wrapper_api_key_env,
+        "relayCommonConfigContents": content_state(&settings.relay_common_config_contents),
+        "relayContextConfigContents": content_state(&settings.relay_context_config_contents),
+        "relayProfiles": settings
+            .relay_profiles
+            .iter()
+            .map(redacted_relay_profile_report)
+            .collect::<Vec<_>>()
+    })
+}
+
+fn redacted_relay_profile_report(profile: &RelayProfile) -> Value {
+    json!({
+        "id": profile.id,
+        "linkedCcsProviderId": profile.linked_ccs_provider_id,
+        "name": profile.name,
+        "upstreamBaseUrl": profile.upstream_base_url,
+        "protocol": profile.protocol,
+        "relayMode": profile.relay_mode,
+        "officialMixApiKey": profile.official_mix_api_key,
+        "testModel": profile.test_model,
+        "apiKey": secret_state(&profile.api_key),
+        "configContents": content_state(&profile.config_contents),
+        "authContents": content_state(&profile.auth_contents),
+        "useCommonConfig": profile.use_common_config,
+        "contextSelection": profile.context_selection,
+        "contextSelectionInitialized": profile.context_selection_initialized,
+        "contextWindow": profile.context_window,
+        "autoCompactLimit": profile.auto_compact_limit,
+        "modelInsertMode": profile.model_insert_mode,
+        "modelList": content_state(&profile.model_list)
+    })
+}
+
+fn secret_state(value: &str) -> &'static str {
+    if value.trim().is_empty() {
+        "empty"
+    } else {
+        "redacted"
+    }
+}
+
+fn content_state(value: &str) -> Value {
+    json!({
+        "present": !value.trim().is_empty(),
+        "bytes": value.len()
+    })
 }
 
 fn load_overview_payload() -> (
