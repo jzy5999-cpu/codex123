@@ -124,6 +124,7 @@ pub enum RelayProtocol {
 #[serde(rename_all = "camelCase")]
 pub enum RelayMode {
     Official,
+    RemoteRelay,
     #[default]
     MixedApi,
     PureApi,

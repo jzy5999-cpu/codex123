@@ -18,6 +18,47 @@
 
 Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
 
+## codex123 远控兼容中转
+
+`codex123` 基于 CodexPlusPlus，新增明确的“远控兼容中转模式”。这个模式用于同时满足三件事：
+
+- 保留官方 ChatGPT 登录态，避免把 Codex 切成纯 API Key 模式。
+- 让 Codex 模型请求走自定义中转 Base URL。
+- 继续通过外部 launcher + Chromium DevTools Protocol 注入增强脚本，不修改 Codex App 原始安装文件。
+
+推荐使用方式：
+
+1. 先用原版 Codex 登录官方 ChatGPT 账号。
+2. 手机 ChatGPT 登录同一个账号。
+3. 打开 Codex++ 管理工具。
+4. 在供应商配置里选择“远控兼容中转”。
+5. 填写中转 `Base URL` 和 `Key`，上游协议选择 `Responses API`。
+6. 从 `Codex++` 入口启动，不要从原版 Codex 图标启动。
+
+该模式会生成类似配置：
+
+```toml
+model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+base_url = "https://your-relay.example.com/v1"
+wire_api = "responses"
+experimental_bearer_token = "sk-..."
+requires_openai_auth = true
+```
+
+同时会保留并修正 `~/.codex/auth.json` 的官方登录态，不会把中转 Key 写入 `OPENAI_API_KEY`：
+
+```json
+{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null
+}
+```
+
+注意：`codex123` 能保证本地配置不破坏官方远程控制所需的 ChatGPT 登录态，但手机端 Codex 入口是否可见、Free 账号是否可用、远程会话是否能建立，仍取决于 OpenAI 官方账号权限和功能状态。
+
 ## 快速使用
 
 从 [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases) 下载最新版安装包：

@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
-use crate::settings::{RelayContextSelection, RelayProfile, RelayProtocol};
+use crate::settings::{RelayContextSelection, RelayMode, RelayProfile, RelayProtocol};
 
 const RELAY_PROVIDER: &str = "custom";
 const STABLE_RELAY_PROVIDER: &str = RELAY_PROVIDER;
+const CODEX123_RELAY_PROVIDER: &str = "codex123";
 const LEGACY_RELAY_PROVIDERS: &[&str] = &["CodexPlusPlus", "CodexPP"];
 const CHAT_UPSTREAM_BASE_URL_KEY: &str = "codex_plus_chat_base_url";
 const RESERVED_MODEL_PROVIDER_IDS: &[&str] = &[
@@ -360,6 +361,9 @@ pub fn apply_relay_profile_to_home_with_switch_rules(
     profile: &RelayProfile,
     common_config_contents: &str,
 ) -> anyhow::Result<RelayApplyResult> {
+    if profile.relay_mode == RelayMode::RemoteRelay {
+        validate_remote_relay_source_config(&profile.config_contents)?;
+    }
     let selected_common = if profile.use_common_config {
         filter_common_config_for_selection(common_config_contents, &profile.context_selection)?
     } else {
@@ -373,8 +377,12 @@ pub fn apply_relay_profile_to_home_with_switch_rules(
         &profile.auto_compact_limit,
     )?;
 
-    if profile.relay_mode == crate::settings::RelayMode::PureApi {
+    if profile.relay_mode == RelayMode::PureApi {
         apply_relay_files_to_home(home, &config_with_limits, &profile.auth_contents)
+    } else if profile.relay_mode == RelayMode::RemoteRelay {
+        validate_remote_relay_config(&config_with_limits)?;
+        let auth_contents = remote_relay_auth_for_switch(home, &profile.auth_contents)?;
+        apply_relay_files_to_home(home, &config_with_limits, &auth_contents)
     } else {
         let auth_contents = official_profile_auth_for_switch(home, &profile.auth_contents)?;
         apply_relay_files_to_home(home, &config_with_limits, &auth_contents)
@@ -1433,6 +1441,49 @@ fn official_profile_auth_for_switch(home: &Path, auth_contents: &str) -> anyhow:
     remove_openai_api_key_from_auth_contents(&source)
 }
 
+fn remote_relay_auth_for_switch(home: &Path, auth_contents: &str) -> anyhow::Result<String> {
+    let source = if auth_contents.trim().is_empty() {
+        read_optional_text(&home.join("auth.json"))?
+    } else {
+        auth_contents.to_string()
+    };
+    enforce_remote_relay_auth_contents(&source)
+}
+
+fn enforce_remote_relay_auth_contents(auth_contents: &str) -> anyhow::Result<String> {
+    if auth_contents.trim().is_empty() {
+        anyhow::bail!(
+            "远控兼容中转模式需要先在原版 Codex / ChatGPT 登录官方账号，未检测到 auth.json。"
+        );
+    }
+
+    let mut value =
+        serde_json::from_str::<Value>(auth_contents).with_context(|| "auth.json JSON 解析失败")?;
+    let Some(object) = value.as_object_mut() else {
+        anyhow::bail!("auth.json 必须是 JSON 对象");
+    };
+    let is_chatgpt = object
+        .get("auth_mode")
+        .and_then(Value::as_str)
+        .map(|mode| mode.eq_ignore_ascii_case("chatgpt"))
+        .unwrap_or(false);
+    let has_login_secret = object
+        .get("tokens")
+        .is_some_and(tokens_have_login_secret);
+    if !is_chatgpt || !has_login_secret {
+        anyhow::bail!(
+            "远控兼容中转模式需要保留官方 ChatGPT 登录态。请先用原版 Codex 登录 ChatGPT 账号，再启用该模式。"
+        );
+    }
+
+    object.insert(
+        "auth_mode".to_string(),
+        Value::String("chatgpt".to_string()),
+    );
+    object.insert("OPENAI_API_KEY".to_string(), Value::Null);
+    Ok(format!("{}\n", serde_json::to_string_pretty(&value)?))
+}
+
 fn codex_auth_api_key(auth_contents: &str) -> Option<String> {
     let auth: Value = serde_json::from_str(auth_contents).ok()?;
     auth.get("OPENAI_API_KEY")
@@ -1480,7 +1531,7 @@ fn relay_profile_base_url(profile: &RelayProfile) -> String {
 }
 
 fn relay_profile_api_key(profile: &RelayProfile) -> String {
-    if profile.relay_mode == crate::settings::RelayMode::Official {
+    if matches!(profile.relay_mode, RelayMode::Official | RelayMode::RemoteRelay) {
         return experimental_bearer_token_from_config(&profile.config_contents)
             .ok()
             .flatten()
@@ -1499,7 +1550,12 @@ fn relay_profile_api_key(profile: &RelayProfile) -> String {
 
 fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<String> {
     let mut doc = parse_toml_document(&profile.config_contents)?;
-    let provider_id = active_or_default_provider_id(&doc);
+    let provider_id =
+        if profile.relay_mode == RelayMode::RemoteRelay && active_provider_id(&doc).is_none() {
+            CODEX123_RELAY_PROVIDER.to_string()
+        } else {
+            active_or_default_provider_id(&doc)
+        };
     set_provider_id(&mut doc, &provider_id);
 
     let model = relay_profile_model(profile);
@@ -1548,7 +1604,11 @@ fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<Strin
     if !provider_base_url.trim().is_empty() {
         provider["base_url"] = toml_edit::value(provider_base_url.trim());
     }
-    if profile.relay_mode == crate::settings::RelayMode::PureApi {
+    if matches!(profile.relay_mode, RelayMode::RemoteRelay) {
+        provider["wire_api"] = toml_edit::value("responses");
+        provider["requires_openai_auth"] = toml_edit::value(true);
+    }
+    if profile.relay_mode == RelayMode::PureApi {
         provider.remove("experimental_bearer_token");
     } else if !api_key.trim().is_empty() {
         provider["experimental_bearer_token"] = toml_edit::value(api_key.trim());
@@ -1560,7 +1620,7 @@ fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<Strin
 }
 
 pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow::Result<()> {
-    if profile.relay_mode == crate::settings::RelayMode::Official && !profile.official_mix_api_key {
+    if profile.relay_mode == RelayMode::Official && !profile.official_mix_api_key {
         profile.config_contents.clear();
         profile.model.clear();
         profile.base_url.clear();
@@ -1570,13 +1630,16 @@ pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow
     }
     let source_base_url = relay_profile_base_url(profile);
     let source_api_key = relay_profile_api_key(profile);
+    if profile.relay_mode == RelayMode::RemoteRelay {
+        validate_remote_relay_source_config(&profile.config_contents)?;
+    }
     if !profile.config_contents.trim().is_empty()
-        || profile.relay_mode == crate::settings::RelayMode::PureApi
+        || matches!(profile.relay_mode, RelayMode::PureApi | RelayMode::RemoteRelay)
         || profile.official_mix_api_key
     {
         profile.config_contents = complete_relay_profile_config(profile)?;
     }
-    if profile.relay_mode == crate::settings::RelayMode::PureApi
+    if profile.relay_mode == RelayMode::PureApi
         && profile.auth_contents.trim().is_empty()
         && !source_api_key.trim().is_empty()
     {
@@ -1584,13 +1647,94 @@ pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow
             "OPENAI_API_KEY": source_api_key.trim()
         }))?;
     }
-    if profile.relay_mode == crate::settings::RelayMode::Official {
+    if profile.relay_mode == RelayMode::RemoteRelay {
+        if !profile.auth_contents.trim().is_empty() {
+            profile.auth_contents = enforce_remote_relay_auth_contents(&profile.auth_contents)?;
+        }
+        validate_remote_relay_config(&profile.config_contents)?;
+    } else if profile.relay_mode == RelayMode::Official {
         profile.auth_contents = remove_openai_api_key_from_auth_contents(&profile.auth_contents)?;
     }
     profile.model = relay_profile_model(profile);
     profile.upstream_base_url = source_base_url.clone();
     profile.base_url = source_base_url;
     profile.api_key = relay_profile_api_key(profile);
+    Ok(())
+}
+
+fn validate_remote_relay_config(config_contents: &str) -> anyhow::Result<()> {
+    let doc = parse_toml_document(config_contents)?;
+    let provider_id = active_provider_id(&doc)
+        .ok_or_else(|| anyhow::anyhow!("config.toml 缺少 model_provider"))?;
+    let provider = doc
+        .get("model_providers")
+        .and_then(Item::as_table)
+        .and_then(|providers| providers.get(&provider_id))
+        .and_then(Item::as_table)
+        .ok_or_else(|| anyhow::anyhow!("config.toml 缺少当前 model_provider 对应的 provider table"))?;
+    let wire_api = provider
+        .get("wire_api")
+        .and_then(Item::as_str)
+        .map(str::trim)
+        .unwrap_or_default();
+    if wire_api != "responses" {
+        anyhow::bail!("远控兼容中转模式要求 wire_api = \"responses\"");
+    }
+    if provider
+        .get("requires_openai_auth")
+        .and_then(Item::as_bool)
+        != Some(true)
+    {
+        anyhow::bail!("远控兼容中转模式要求 requires_openai_auth = true");
+    }
+    if provider
+        .get("base_url")
+        .and_then(Item::as_str)
+        .map(str::trim)
+        .is_none_or(str::is_empty)
+    {
+        anyhow::bail!("远控兼容中转模式缺少中转 base_url");
+    }
+    if provider
+        .get("experimental_bearer_token")
+        .and_then(Item::as_str)
+        .map(str::trim)
+        .is_none_or(str::is_empty)
+    {
+        anyhow::bail!("远控兼容中转模式缺少 experimental_bearer_token");
+    }
+    Ok(())
+}
+
+fn validate_remote_relay_source_config(config_contents: &str) -> anyhow::Result<()> {
+    if config_contents.trim().is_empty() {
+        return Ok(());
+    }
+    let doc = parse_toml_document(config_contents)?;
+    let Some(provider_id) = active_provider_id(&doc) else {
+        return Ok(());
+    };
+    let Some(provider) = doc
+        .get("model_providers")
+        .and_then(Item::as_table)
+        .and_then(|providers| providers.get(&provider_id))
+        .and_then(Item::as_table)
+    else {
+        return Ok(());
+    };
+    if let Some(wire_api) = provider.get("wire_api").and_then(Item::as_str).map(str::trim) {
+        if wire_api != "responses" {
+            anyhow::bail!("远控兼容中转模式要求 wire_api = \"responses\"");
+        }
+    }
+    if let Some(requires_openai_auth) = provider
+        .get("requires_openai_auth")
+        .and_then(Item::as_bool)
+    {
+        if !requires_openai_auth {
+            anyhow::bail!("远控兼容中转模式要求 requires_openai_auth = true");
+        }
+    }
     Ok(())
 }
 

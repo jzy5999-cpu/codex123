@@ -1563,7 +1563,7 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                 );
                 if !status.configured {
                     return failed(
-                        "纯 API 配置写入后未检测到完整 custom provider，请检查 config.toml 和供应商 API Key。",
+                        "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。",
                         relay_payload(status, result.backup_path),
                     );
                 }
@@ -1607,12 +1607,12 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
             );
             if !status.configured {
                 return failed(
-                    "纯 API 配置写入后未检测到完整 custom provider，请检查 config.toml 和供应商 API Key。",
+                    "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。",
                     relay_payload(status, result.backup_path),
                 );
             }
             ok(
-                    "纯 API 模式已写入：config.toml 已写入 custom provider，auth.json 已切换为当前供应商。",
+                    "纯 API 模式已写入：config.toml 已写入 provider，auth.json 已切换为当前供应商。",
                 relay_payload(status, result.backup_path),
             )
         }
@@ -1656,7 +1656,7 @@ pub fn clear_relay_injection() -> CommandResult<RelayPayload> {
                 }),
             );
             ok(
-                "已清除 custom 中转 API 模式，并切换到官方 ChatGPT 登录模式。",
+                "已清除中转 API 模式，并切换到官方 ChatGPT 登录模式。",
                 relay_payload(status, result.backup_path),
             )
         }
@@ -1678,6 +1678,9 @@ pub fn clear_relay_injection() -> CommandResult<RelayPayload> {
 }
 
 fn relay_has_complete_files(relay: &codex_plus_core::settings::RelayProfile) -> bool {
+    if relay.relay_mode == codex_plus_core::settings::RelayMode::RemoteRelay {
+        return !relay.config_contents.trim().is_empty();
+    }
     if relay.relay_mode == codex_plus_core::settings::RelayMode::Official
         && relay.official_mix_api_key
     {

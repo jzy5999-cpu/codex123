@@ -161,7 +161,7 @@ type CodexContextEntries = {
 };
 
 type RelayProtocol = "responses" | "chatCompletions";
-type RelayMode = "official" | "mixedApi" | "pureApi";
+type RelayMode = "official" | "remoteRelay" | "mixedApi" | "pureApi";
 const PROTOCOL_PROXY_BASE_URL = "http://127.0.0.1:57321/v1";
 const CHAT_UPSTREAM_BASE_URL_KEY = "codex_plus_chat_base_url";
 const SCRIPT_MARKET_REPOSITORY_URL = "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket";
@@ -2532,6 +2532,7 @@ function RelayProfileEditor({
             }}
           >
             <option value="official">官方登录</option>
+            <option value="remoteRelay">远控兼容中转</option>
             <option value="pureApi">纯 API</option>
           </select>
         </Field>
@@ -3947,6 +3948,7 @@ function relayProtocolLabel(protocol: RelayProtocol): string {
 }
 
 function normalizeRelayMode(mode: RelayMode | undefined): RelayMode {
+  if (mode === "remoteRelay") return mode;
   if (mode === "pureApi") return mode;
   return "official";
 }
@@ -3970,16 +3972,21 @@ function normalizeContextSelection(
 }
 
 function relayModeLabel(mode: RelayMode): string {
+  if (mode === "remoteRelay") return "远控兼容中转";
   if (mode === "pureApi") return "纯 API";
   return "官方登录";
 }
 
 function relayProfileConfigBrief(profile: RelayProfile): string {
+  if (profile.relayMode === "remoteRelay") return "官方登录态 + 中转";
   if (profile.relayMode === "official") return profile.officialMixApiKey ? "混入 API Key" : "不写 API 文件";
   return profile.baseUrl || "未填写 URL";
 }
 
 function relayProfileModeHelp(profile: RelayProfile): string {
+  if (profile.relayMode === "remoteRelay") {
+    return "该模式会保留官方 ChatGPT 登录态，把中转 Key 只写入 config.toml 的 bearer token，不写入 auth.json；手机入口仍取决于官方账号权限。";
+  }
   if (profile.relayMode === "official") {
     if (profile.officialMixApiKey) {
       return "此供应商会保留官方登录模式，并把请求混入当前 API Key；页面增强仍使用兼容模式。";
@@ -3993,6 +4000,13 @@ function relayProfileModeHelp(profile: RelayProfile): string {
 }
 
 function relayProfileReadinessText(profile: RelayProfile, relay: RelayResult | null): string {
+  if (profile.relayMode === "remoteRelay") {
+    const hasApiFields = profile.baseUrl.trim() && profile.apiKey.trim();
+    if (!relay?.authenticated && !hasApiFields) return "当前未登录官方账号，也未配置中转 Base URL / Key。";
+    if (!relay?.authenticated) return "当前未登录官方账号；远控兼容中转需要先登录官方 ChatGPT 账号。";
+    if (!hasApiFields) return "当前还没有填写中转 Base URL / Key。";
+    return `远控兼容中转已就绪：${relay.accountLabel || "已登录"}，会保留官方登录态并使用中转。`;
+  }
   if (profile.relayMode === "official") {
     if (profile.officialMixApiKey) {
       const hasApiFields = profile.baseUrl.trim() && profile.apiKey.trim();
@@ -4013,6 +4027,7 @@ function relayProfileReadinessText(profile: RelayProfile, relay: RelayResult | n
 
 function relayProfileSwitchCommand(profile: RelayProfile): "clear_relay_injection" | "apply_relay_injection" | "apply_pure_api_injection" {
   if (profile.relayMode === "pureApi") return "apply_pure_api_injection";
+  if (profile.relayMode === "remoteRelay") return "apply_relay_injection";
   if (profile.relayMode === "official" && !profile.officialMixApiKey) return "clear_relay_injection";
   if (profile.configContents.trim()) return "apply_relay_injection";
   return profile.officialMixApiKey ? "apply_relay_injection" : "clear_relay_injection";
@@ -4020,11 +4035,19 @@ function relayProfileSwitchCommand(profile: RelayProfile): "clear_relay_injectio
 
 function relayProfileModeSwitchedText(profile: RelayProfile): string {
   if (profile.relayMode === "pureApi") return "已按此供应商切换到纯 API；页面增强已设为完整增强。";
+  if (profile.relayMode === "remoteRelay") return "已按此供应商启用远控兼容中转；页面增强已设为兼容增强。";
   if (profile.officialMixApiKey) return "已按此供应商使用官方登录，并混入 API Key；页面增强已设为兼容增强。";
   return "已按此供应商切回官方登录；页面增强已设为兼容增强。";
 }
 
 function withGeneratedRelayFiles(profile: RelayProfile): RelayProfile {
+  if (profile.relayMode === "remoteRelay") {
+    return {
+      ...profile,
+      configContents: buildRelayConfigToml(profile, { includeBearerToken: true }),
+      authContents: buildRemoteRelayAuthJson(profile.authContents),
+    };
+  }
   if (profile.relayMode === "official") {
     return {
       ...profile,
@@ -4047,13 +4070,13 @@ function buildRelayConfigToml(
   const apiKey = profile.apiKey.trim();
   const rootLines = [
     profile.model.trim() ? `model = "${tomlString(profile.model.trim())}"` : null,
-    'model_provider = "custom"',
+    'model_provider = "codex123"',
     "",
   ].filter((line): line is string => line !== null);
   return [
     ...rootLines,
-    "[model_providers.custom]",
-    'name = "custom"',
+    "[model_providers.codex123]",
+    'name = "codex123"',
     'wire_api = "responses"',
     "requires_openai_auth = true",
     `base_url = "${tomlString(baseUrl)}"`,
@@ -4079,9 +4102,29 @@ function buildOfficialRelayAuthJson(contents: string): string {
   }
 }
 
+function buildRemoteRelayAuthJson(contents: string): string {
+  const trimmed = contents.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return `${JSON.stringify({ auth_mode: "chatgpt", OPENAI_API_KEY: null }, null, 2)}\n`;
+    }
+    parsed.auth_mode = "chatgpt";
+    parsed.OPENAI_API_KEY = null;
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  } catch {
+    return `${JSON.stringify({ auth_mode: "chatgpt", OPENAI_API_KEY: null }, null, 2)}\n`;
+  }
+}
+
 function deriveRelayProfileFromFiles(profile: RelayProfile): RelayProfile {
   const configContents = profile.configContents || "";
-  const authContents = profile.relayMode === "official" ? buildOfficialRelayAuthJson(profile.authContents || "") : profile.authContents || "";
+  const authContents = profile.relayMode === "remoteRelay"
+    ? buildRemoteRelayAuthJson(profile.authContents || "")
+    : profile.relayMode === "official"
+      ? buildOfficialRelayAuthJson(profile.authContents || "")
+      : profile.authContents || "";
   const configBaseUrl = codexBaseUrlFromConfig(configContents);
   const chatUpstreamBaseUrl = rootTomlStringValue(configContents, CHAT_UPSTREAM_BASE_URL_KEY);
   const isProxyConfig = configBaseUrl === PROTOCOL_PROXY_BASE_URL;
@@ -4092,7 +4135,7 @@ function deriveRelayProfileFromFiles(profile: RelayProfile): RelayProfile {
     model: codexModelFromConfig(configContents),
     baseUrl: upstreamBaseUrl,
     upstreamBaseUrl,
-    apiKey: profile.relayMode === "official"
+    apiKey: profile.relayMode === "official" || profile.relayMode === "remoteRelay"
       ? configApiKey || profile.apiKey || ""
       : codexApiKeyFromAuth(authContents) || configApiKey || "",
     contextWindow: codexTopLevelIntFromConfig(configContents, "model_context_window"),
@@ -4144,7 +4187,10 @@ function applyRelayProfilePatchToFiles(profile: RelayProfile, patch: Partial<Rel
     );
   }
   if ("relayMode" in patch || "officialMixApiKey" in patch) {
-    if (next.relayMode === "official" && !next.officialMixApiKey) {
+    if (next.relayMode === "remoteRelay") {
+      next.configContents = next.configContents.trim() ? next.configContents : buildRelayConfigToml(next, { includeBearerToken: true });
+      next.authContents = buildRemoteRelayAuthJson(next.authContents);
+    } else if (next.relayMode === "official" && !next.officialMixApiKey) {
       next.configContents = "";
       next.authContents = buildOfficialRelayAuthJson(next.authContents);
     } else if (!next.configContents.trim() || (next.relayMode === "pureApi" && !next.authContents.trim())) {

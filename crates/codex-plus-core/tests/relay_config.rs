@@ -311,6 +311,140 @@ fn official_mix_api_profile_removes_auth_api_key_on_storage() {
 }
 
 #[test]
+fn remote_relay_profile_generates_codex123_provider_and_null_auth_api_key() {
+    let mut profile = RelayProfile {
+        relay_mode: RelayMode::RemoteRelay,
+        base_url: "https://relay.example/v1".to_string(),
+        api_key: "sk-remote".to_string(),
+        auth_contents: r#"{"auth_mode":"chatgpt","tokens":{"access_token":"official"},"OPENAI_API_KEY":"old"}"#.to_string(),
+        ..RelayProfile::default()
+    };
+
+    normalize_relay_profile_for_storage(&mut profile).unwrap();
+
+    assert!(profile.config_contents.contains(r#"model_provider = "codex123""#));
+    assert!(profile.config_contents.contains("[model_providers.codex123]"));
+    assert!(profile.config_contents.contains(r#"wire_api = "responses""#));
+    assert!(profile.config_contents.contains("requires_openai_auth = true"));
+    assert!(profile.config_contents.contains(r#"base_url = "https://relay.example/v1""#));
+    assert!(profile.config_contents.contains(r#"experimental_bearer_token = "sk-remote""#));
+
+    let auth: serde_json::Value = serde_json::from_str(&profile.auth_contents).unwrap();
+    assert_eq!(auth["auth_mode"], "chatgpt");
+    assert!(auth.get("OPENAI_API_KEY").is_some_and(|value| value.is_null()));
+    assert_eq!(auth["tokens"]["access_token"], "official");
+}
+
+#[test]
+fn remote_relay_profile_rejects_missing_official_login_state() {
+    let mut profile = RelayProfile {
+        relay_mode: RelayMode::RemoteRelay,
+        base_url: "https://relay.example/v1".to_string(),
+        api_key: "sk-remote".to_string(),
+        auth_contents: r#"{"auth_mode":"chatgpt","OPENAI_API_KEY":null}"#.to_string(),
+        ..RelayProfile::default()
+    };
+
+    let error = normalize_relay_profile_for_storage(&mut profile).unwrap_err();
+
+    assert!(error.to_string().contains("官方 ChatGPT 登录态"));
+}
+
+#[test]
+fn apply_remote_relay_profile_requires_live_official_login_and_keeps_auth_mode() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","tokens":{"access_token":"official"},"OPENAI_API_KEY":"old"}"#,
+    )
+    .unwrap();
+    let profile = RelayProfile {
+        id: "remote-relay".to_string(),
+        relay_mode: RelayMode::RemoteRelay,
+        config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-remote"
+"#
+        .to_string(),
+        auth_contents: String::new(),
+        ..RelayProfile::default()
+    };
+
+    apply_relay_profile_to_home_with_switch_rules(temp.path(), &profile, "").unwrap();
+
+    let auth = std::fs::read_to_string(temp.path().join("auth.json")).unwrap();
+    let auth: serde_json::Value = serde_json::from_str(&auth).unwrap();
+    assert_eq!(auth["auth_mode"], "chatgpt");
+    assert!(auth.get("OPENAI_API_KEY").is_some_and(|value| value.is_null()));
+    assert_eq!(auth["tokens"]["access_token"], "official");
+
+    let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
+    assert!(config.contains(r#"model_provider = "codex123""#));
+    assert!(config.contains(r#"experimental_bearer_token = "sk-remote""#));
+    assert!(config.contains("requires_openai_auth = true"));
+}
+
+#[test]
+fn apply_remote_relay_profile_rejects_missing_live_login() {
+    let temp = tempfile::tempdir().unwrap();
+    let profile = RelayProfile {
+        id: "remote-relay".to_string(),
+        relay_mode: RelayMode::RemoteRelay,
+        config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-remote"
+"#
+        .to_string(),
+        auth_contents: String::new(),
+        ..RelayProfile::default()
+    };
+
+    let error = apply_relay_profile_to_home_with_switch_rules(temp.path(), &profile, "").unwrap_err();
+
+    assert!(error.to_string().contains("未检测到 auth.json"));
+}
+
+#[test]
+fn apply_remote_relay_profile_rejects_non_responses_config() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","tokens":{"access_token":"official"}}"#,
+    )
+    .unwrap();
+    let profile = RelayProfile {
+        id: "remote-relay".to_string(),
+        relay_mode: RelayMode::RemoteRelay,
+        config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "chat"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-remote"
+"#
+        .to_string(),
+        auth_contents: String::new(),
+        ..RelayProfile::default()
+    };
+
+    let error = apply_relay_profile_to_home_with_switch_rules(temp.path(), &profile, "").unwrap_err();
+
+    assert!(error.to_string().contains("wire_api"));
+}
+
+#[test]
 fn apply_pure_api_config_switches_auth_json_and_writes_provider_token() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(
