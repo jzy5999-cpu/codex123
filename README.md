@@ -14,7 +14,7 @@
 
 codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动器和管理工具。项目目标是更好地使用 Codex：保留官方 ChatGPT 登录态，尽量降低中转配置对远程控制能力的破坏，同时继续使用外部 launcher 和 Chromium DevTools Protocol 注入增强脚本，不直接修改 Codex App 原始安装文件。
 
-本项目致敬并基于 [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。CodexPlusPlus 提供了外部 launcher、管理工具、CDP 注入、安装包结构等核心基础；`codex123` 在此基础上加入远控兼容中转模式，并把第一版交付重点放在 macOS Apple Silicon。项目也参考了其他开源工具的实践，优先服务个人开发工作流。
+本项目致敬并基于 [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。CodexPlusPlus 提供了外部 launcher、管理工具、CDP 注入、安装包结构等核心基础；`codex123` 在此基础上加入远控兼容中转模式，并把第一版交付重点放在 macOS Apple Silicon。项目也参考了其他开源工具的实践，尤其借鉴了 [ccswitch](https://github.com/farion1231/cc-switch) 在 Codex 接入 DeepSeek / Chat Completions 上游时的本地路由与协议转换思路，优先服务个人开发工作流。
 
 `codex123` 不是 OpenAI 官方项目，也不与 OpenAI 存在隶属、赞助或背书关系。Codex、ChatGPT 及相关名称归其各自权利方所有。
 
@@ -67,6 +67,19 @@ requires_openai_auth = true
 
 注意：`codex123` 能保证本地配置不破坏官方远程控制所需的 ChatGPT 登录态，但手机端 Codex 入口是否可见、Free 账号是否可用、远程会话是否能建立，仍取决于 OpenAI 官方账号权限和功能状态。
 
+## DeepSeek / Chat Completions 兼容优化
+
+Codex 当前主要按 OpenAI Responses API 形态请求模型，而 DeepSeek 官方 API 和很多中转站实际提供的是 OpenAI Chat Completions 兼容接口。`codex123` 借鉴 ccswitch 的 Codex DeepSeek 路由设计，在本地协议代理中把 Codex 的 Responses 请求转换为 Chat Completions 请求，再把上游响应转换回 Responses 形态。
+
+推荐 DeepSeek 使用方式：
+
+1. 在管理工具中新建供应商。
+2. `Base URL` 填 DeepSeek 或中转站地址，例如 `https://api.deepseek.com` 或兼容服务的 `/v1` 根地址。
+3. 上游协议选择 `Chat Completions`。
+4. 选择“远控兼容中转”时仍保持 `wire_api = "responses"`，并从 `codex123` 入口启动 Codex。
+
+当前优化包括 DeepSeek reasoning effort 映射、`reasoning_content` 流式返回转换、assistant tool-call 历史的 `reasoning_content` 兜底，以及基础工具调用历史转换。该能力提高 DeepSeek 长会话和工具调用稳定性，但不保证所有 DeepSeek 中转站 100% 可用；中转站仍需要兼容 OpenAI Chat Completions、流式输出和工具调用。
+
 ## 快速使用
 
 Release 产物为：
@@ -118,6 +131,8 @@ makensis /DVERSION=0.2.0 codex123.nsi
 `codex123` 使用 MIT License 开源。上游来源和本地改动记录见 [UPSTREAM.md](UPSTREAM.md)，项目归属和免责声明见 [NOTICE](NOTICE)。
 
 特别感谢 [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。没有 CodexPlusPlus 对外部启动、管理工具、CDP 注入和安装体验的探索，`codex123` 不会这么快成形。
+
+同时感谢 [ccswitch](https://github.com/farion1231/cc-switch) 对 Codex 接入 DeepSeek / Chat Completions 上游的本地路由和协议转换实践，`codex123` 的 DeepSeek 兼容优化参考了这部分设计。
 
 ## 主要功能
 

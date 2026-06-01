@@ -92,6 +92,41 @@ fn responses_request_matches_ccs_reasoning_and_tool_choice_edges() {
 }
 
 #[test]
+fn responses_request_maps_deepseek_reasoning_effort() {
+    let max = responses_to_chat_completions(json!({
+        "model": "deepseek-v4-pro",
+        "reasoning": { "effort": "max" },
+        "input": "hi"
+    }))
+    .unwrap();
+    assert_eq!(max["reasoning_effort"], "max");
+
+    let high = responses_to_chat_completions(json!({
+        "model": "deepseek-reasoner",
+        "reasoning": { "effort": "minimal" },
+        "input": "hi"
+    }))
+    .unwrap();
+    assert_eq!(high["reasoning_effort"], "high");
+
+    let chat = responses_to_chat_completions(json!({
+        "model": "deepseek-chat",
+        "reasoning": { "effort": "high" },
+        "input": "hi"
+    }))
+    .unwrap();
+    assert!(chat.get("reasoning_effort").is_none());
+
+    let generic = responses_to_chat_completions(json!({
+        "model": "kimi-k2",
+        "reasoning": { "effort": "high" },
+        "input": "hi"
+    }))
+    .unwrap();
+    assert!(generic.get("reasoning_effort").is_none());
+}
+
+#[test]
 fn responses_request_maps_developer_role_to_system_for_chat_upstream() {
     let converted = responses_to_chat_completions(json!({
         "model": "deepseek-chat",
@@ -125,6 +160,55 @@ fn responses_request_maps_developer_role_to_system_for_chat_upstream() {
             .unwrap()
             .contains("\"developer\"")
     );
+}
+
+#[test]
+fn responses_request_backfills_deepseek_tool_call_reasoning_placeholder() {
+    let converted = responses_to_chat_completions(json!({
+        "model": "deepseek-v4-pro",
+        "input": [
+            {
+                "type": "function_call",
+                "call_id": "call_missing_reasoning",
+                "name": "exec_command",
+                "arguments": "{\"cmd\":\"pwd\"}"
+            }
+        ]
+    }))
+    .unwrap();
+
+    assert_eq!(converted["messages"][0]["role"], "assistant");
+    assert_eq!(converted["messages"][0]["reasoning_content"], "tool call");
+    assert_eq!(
+        converted["messages"][0]["tool_calls"][0]["id"],
+        "call_missing_reasoning"
+    );
+}
+
+#[test]
+fn responses_request_keeps_existing_deepseek_tool_call_reasoning() {
+    let converted = responses_to_chat_completions(json!({
+        "model": "deepseek-v4-pro",
+        "input": [
+            {
+                "type": "reasoning",
+                "summary": [{ "type": "summary_text", "text": "Need to inspect first." }]
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_with_reasoning",
+                "name": "exec_command",
+                "arguments": "{\"cmd\":\"ls\"}"
+            }
+        ]
+    }))
+    .unwrap();
+
+    assert_eq!(
+        converted["messages"][0]["reasoning_content"],
+        "Need to inspect first."
+    );
+    assert_ne!(converted["messages"][0]["reasoning_content"], "tool call");
 }
 
 #[test]

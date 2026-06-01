@@ -127,13 +127,13 @@ pub fn responses_to_chat_completions(body: Value) -> anyhow::Result<Value> {
         }
     }
 
+    let model = body.get("model").and_then(Value::as_str).unwrap_or("");
     if let Some(input) = body.get("input") {
         append_responses_input(input, &mut messages);
     }
-    normalize_chat_messages(&mut messages);
+    normalize_chat_messages(&mut messages, model);
     result["messages"] = json!(messages);
 
-    let model = body.get("model").and_then(Value::as_str).unwrap_or("");
     if let Some(value) = body.get("max_output_tokens") {
         if is_openai_o_series(model) {
             result["max_completion_tokens"] = value.clone();
@@ -162,10 +162,14 @@ pub fn responses_to_chat_completions(body: Value) -> anyhow::Result<Value> {
         result["stream_options"] = stream_options;
     }
 
-    if supports_reasoning_effort(model)
-        && let Some(effort) = body.pointer("/reasoning/effort").and_then(Value::as_str)
-    {
-        result["reasoning_effort"] = json!(normalize_reasoning_effort(effort));
+    if let Some(effort) = body.pointer("/reasoning/effort").and_then(Value::as_str) {
+        if supports_deepseek_reasoning_effort(model) {
+            if let Some(mapped) = normalize_deepseek_reasoning_effort(effort) {
+                result["reasoning_effort"] = json!(mapped);
+            }
+        } else if supports_reasoning_effort(model) {
+            result["reasoning_effort"] = json!(normalize_reasoning_effort(effort));
+        }
     }
 
     let tool_context = build_codex_tool_context(body.get("tools"));
@@ -1593,7 +1597,8 @@ fn orphan_tool_output_message(call_id: &str, output: &Value) -> Value {
     })
 }
 
-fn normalize_chat_messages(messages: &mut [Value]) {
+fn normalize_chat_messages(messages: &mut [Value], model: &str) {
+    let should_backfill_reasoning = needs_tool_call_reasoning_content(model);
     for message in messages {
         if message.get("role").and_then(Value::as_str) != Some("assistant") {
             continue;
@@ -1610,6 +1615,9 @@ fn normalize_chat_messages(messages: &mut [Value]) {
             .is_some_and(|tool_calls| !tool_calls.is_empty());
         if !has_content && !has_tool_calls {
             message["content"] = json!("");
+        }
+        if has_tool_calls && should_backfill_reasoning {
+            ensure_tool_call_reasoning_content(message);
         }
     }
 }
@@ -1686,6 +1694,17 @@ fn append_reasoning_to_assistant_message(message: &mut Value, reasoning: &str) {
     if message.get("content").is_none() || message.get("content") == Some(&Value::Null) {
         message["content"] = json!("");
     }
+}
+
+fn ensure_tool_call_reasoning_content(message: &mut Value) {
+    let has_reasoning = message
+        .get("reasoning_content")
+        .and_then(Value::as_str)
+        .is_some_and(|text| !text.trim().is_empty());
+    if has_reasoning {
+        return;
+    }
+    message["reasoning_content"] = json!("tool call");
 }
 
 fn merge_tool_calls_into_message(message: &mut Value, incoming: Vec<Value>) {
@@ -3304,6 +3323,33 @@ fn supports_reasoning_effort(model: &str) -> bool {
             .strip_prefix("gpt-")
             .and_then(|rest| rest.chars().next())
             .is_some_and(|ch| ch.is_ascii_digit() && ch >= '5')
+}
+
+fn supports_deepseek_reasoning_effort(model: &str) -> bool {
+    let model = model.to_ascii_lowercase();
+    model.contains("deepseek")
+        && (model.contains("reasoner")
+            || model.contains("r1")
+            || model.contains("v4")
+            || model.contains("v3.2")
+            || model.contains("v3-2"))
+}
+
+fn needs_tool_call_reasoning_content(model: &str) -> bool {
+    let model = model.to_ascii_lowercase();
+    model.contains("deepseek")
+        || model.contains("kimi")
+        || model.contains("moonshot")
+        || model.contains("mimo")
+}
+
+fn normalize_deepseek_reasoning_effort(effort: &str) -> Option<&'static str> {
+    match effort.trim().to_ascii_lowercase().as_str() {
+        "none" | "off" | "disabled" => None,
+        "max" | "xhigh" => Some("max"),
+        "minimal" | "low" | "medium" | "high" | "auto" => Some("high"),
+        _ => Some("high"),
+    }
 }
 
 fn normalize_reasoning_effort(effort: &str) -> &str {

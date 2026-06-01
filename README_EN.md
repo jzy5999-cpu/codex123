@@ -14,7 +14,7 @@
 
 codex123 is an independent, unofficial, development-experience-first external launcher and manager for the Codex App. Its goal is to make Codex easier to use: preserve the official ChatGPT login state, reduce the risk of relay configuration breaking remote-control prerequisites, and keep the external launcher plus Chromium DevTools Protocol injection path without modifying the original Codex App installation files.
 
-This project is a tribute to and derivative of [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). CodexPlusPlus provided the external launcher, manager, CDP injection approach, installer structure, and much of the foundation that made this project possible. codex123 adds a remote-control-compatible relay mode and focuses the first deliverable on macOS Apple Silicon. It also learns from other open-source tooling practices and prioritizes personal development workflows.
+This project is a tribute to and derivative of [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). CodexPlusPlus provided the external launcher, manager, CDP injection approach, installer structure, and much of the foundation that made this project possible. codex123 adds a remote-control-compatible relay mode and focuses the first deliverable on macOS Apple Silicon. It also learns from other open-source tooling practices, especially [ccswitch](https://github.com/farion1231/cc-switch)'s local routing and protocol conversion approach for connecting Codex to DeepSeek / Chat Completions upstreams, and prioritizes personal development workflows.
 
 codex123 is not an official OpenAI project and is not affiliated with, sponsored by, or endorsed by OpenAI. Codex, ChatGPT, and related names belong to their respective owners.
 
@@ -72,11 +72,26 @@ makensis /DVERSION=0.2.0 codex123.nsi
 
 The generated file is `dist/windows/codex123-0.2.0-windows-x64-setup.exe`.
 
+## DeepSeek / Chat Completions Compatibility
+
+Codex currently sends model requests in the OpenAI Responses API shape, while DeepSeek's official API and many relay providers expose an OpenAI Chat Completions-compatible interface. codex123 borrows ccswitch's Codex DeepSeek routing design: the local protocol proxy converts Codex Responses requests into Chat Completions requests, then converts upstream responses back into the Responses shape.
+
+Recommended DeepSeek setup:
+
+1. Create a new provider in the manager.
+2. Set `Base URL` to DeepSeek or a compatible relay, such as `https://api.deepseek.com` or the relay's `/v1` root.
+3. Choose `Chat Completions` as the upstream protocol.
+4. When using remote-control-compatible relay mode, keep `wire_api = "responses"` and start Codex from the `codex123` entry point.
+
+The current compatibility layer includes DeepSeek reasoning effort mapping, `reasoning_content` streaming conversion, a fallback `reasoning_content` for assistant tool-call history, and basic tool-call history conversion. This improves DeepSeek stability for long sessions and tool use, but it does not guarantee that every DeepSeek relay will work; the relay still needs compatible Chat Completions, streaming, and tool-call behavior.
+
 ## Open Source and Thanks
 
 codex123 is released under the MIT License. See [UPSTREAM.md](UPSTREAM.md) for upstream source and local change notes, and [NOTICE](NOTICE) for attribution and disclaimers.
 
 Special thanks to [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). Without CodexPlusPlus exploring the external launcher, manager, CDP injection, and installer experience, codex123 would not have taken shape this quickly.
+
+Thanks also to [ccswitch](https://github.com/farion1231/cc-switch) for its local routing and protocol conversion work around Codex with DeepSeek / Chat Completions upstreams. codex123's DeepSeek compatibility improvements reference that design.
 
 ## Highlights
 
