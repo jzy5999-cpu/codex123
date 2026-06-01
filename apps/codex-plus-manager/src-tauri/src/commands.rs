@@ -898,6 +898,8 @@ pub async fn check_update() -> CommandResult<Value> {
                 status: status.to_string(),
                 message: if update.update_available {
                     "发现可用更新。".to_string()
+                } else if update.latest_version.is_none() {
+                    "尚未发布可用安装包，当前无法通过 GitHub Release 更新。".to_string()
                 } else {
                     "当前已是最新版本。".to_string()
                 },

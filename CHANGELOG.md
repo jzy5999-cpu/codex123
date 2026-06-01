@@ -1,5 +1,11 @@
 # 更新日志
 
+## 0.2.1 - 2026-06-01
+
+- 修复远控兼容中转供应商切换后 `experimental_bearer_token` 被迁移走，导致回切时提示未填写 API Key 的问题。
+- 更新检查在未发布可用 GitHub Release 安装包时，明确提示“尚未发布可用安装包”，避免误导为已经安装最新源码版本。
+- 继续包含 DeepSeek / Chat Completions 兼容优化：DeepSeek reasoning effort 映射、tool-call 历史 `reasoning_content` 兜底，以及 README 中对 ccswitch 的致谢说明。
+
 ## 0.2.0 - 2026-06-01
 
 - 新增 Windows x64 NSIS 安装包发布链路，产物命名为 `codex123-<version>-windows-x64-setup.exe`。
