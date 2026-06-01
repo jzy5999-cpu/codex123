@@ -20,8 +20,8 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 
 ## 当前边界
 
-- 目前仅提供 macOS Apple Silicon 版本。
-- 第一版使用本地构建和 ad-hoc 签名，不做 Apple Developer ID 公证。
+- 目前提供 macOS Apple Silicon 和 Windows x64 版本。
+- macOS 第一版使用本地构建和 ad-hoc 签名，不做 Apple Developer ID 公证；Windows 第一版使用 NSIS 安装包，暂不做代码签名。
 - 手机 ChatGPT 远程控制入口、账号资格和远程会话能力由 OpenAI 官方控制，`codex123` 不能承诺 100% 可用。
 - 本项目只保证本地配置尽量不破坏官方 ChatGPT 登录态，并保持中转请求与 CDP 注入增强同时可用。
 
@@ -68,16 +68,17 @@ requires_openai_auth = true
 
 ## 快速使用
 
-当前第一版只面向 Apple Silicon MacBook，Release 产物为：
+Release 产物为：
 
 - macOS Apple Silicon：`codex123-*-macos-arm64.dmg`
+- Windows x64：`codex123-*-windows-x64-setup.exe`
 
 安装后会有两个入口：
 
 - `codex123`：静默启动入口，不显示管理界面，只负责启动 Codex 并注入增强功能。
 - `codex123 管理工具`：Tauri 控制面板，用于启动、检查、修复、更新、配置中转注入、管理增强功能和用户脚本。
 
-macOS DMG 会安装 `/Applications/codex123.app` 和 `/Applications/codex123 管理工具.app`。
+macOS DMG 会安装 `/Applications/codex123.app` 和 `/Applications/codex123 管理工具.app`。Windows 安装包会安装 `codex123.exe` 和 `codex123-manager.exe`，并创建 `codex123` 与 `codex123 管理工具` 快捷方式。
 
 本机从源码构建 macOS 安装包：
 
@@ -88,10 +89,28 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.1.3 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.0 arm64
 ```
 
-生成文件位于 `dist/macos/codex123-0.1.3-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+生成文件位于 `dist/macos/codex123-0.2.0-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+
+Windows 安装包由 GitHub Actions 在 Windows runner 上构建。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
+
+```powershell
+cd C:\path\to\codex123
+cd apps\codex-plus-manager
+npm ci
+npm run vite:build
+cd ..\..
+cargo build --release --target x86_64-pc-windows-msvc
+New-Item -ItemType Directory -Force dist\windows\app
+Copy-Item target\x86_64-pc-windows-msvc\release\codex123.exe dist\windows\app\codex123.exe
+Copy-Item target\x86_64-pc-windows-msvc\release\codex123-manager.exe dist\windows\app\codex123-manager.exe
+cd scripts\installer\windows
+makensis /DVERSION=0.2.0 codex123.nsi
+```
+
+生成文件位于 `dist/windows/codex123-0.2.0-windows-x64-setup.exe`。
 
 ## 开源与致谢
 
@@ -111,8 +130,8 @@ BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.1
 - Zed 打开入口：识别远程 SSH 上下文后，可从 Codex 直接打开对应文件到 Zed Remote Development。
 - Upstream worktree 创建：可从 `upstream/<base-branch>` 创建新 worktree，创建前自动 fetch 远端分支，降低从陈旧本地 HEAD 派生导致的冲突风险。
 - GitHub Release 自动更新，管理工具和静默启动器都会检测可用更新。
-- Windows 单实例、无黑框启动、管理员权限清单、系统桌面路径识别。
-- macOS x64/arm64 分架构 DMG，静默入口隐藏 Dock 图标。
+- Windows 单实例、无黑框启动、管理员权限清单、NSIS 安装包和系统桌面路径识别。
+- macOS arm64 DMG，静默入口隐藏 Dock 图标。
 
 ## 痛点与解决
 
@@ -167,7 +186,7 @@ experimental_bearer_token = "sk-..."
 
 ## 自动更新与安装包
 
-codex123 通过 GitHub Release 发布安装包。目前仅发布 macOS Apple Silicon arm64 DMG。
+codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包。
 
 管理工具的“关于”页可以检查并启动更新。静默启动器发现新版本时会拉起管理工具并进入更新提示。
 
@@ -210,9 +229,13 @@ git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 
 当前安装包未签名/未公证时，macOS Gatekeeper 可能拦截。可以在“系统设置 - 隐私与安全性”中允许打开。正式分发建议配置 Apple Developer ID 签名和 notarization。
 
+### Windows 能用吗
+
+可以。Release 会提供 `windows-x64-setup.exe`。第一版 Windows 安装包暂不做代码签名，首次安装可能出现 SmartScreen 提示，需要手动确认来源后继续。
+
 ### macOS Intel 能用吗
 
-可以。Release 会分别提供 `macos-x64.dmg` 和 `macos-arm64.dmg`。Intel Mac 下载 x64 包，Apple Silicon 下载 arm64 包。
+当前发布链路只提供 `macos-arm64.dmg`。Intel Mac 暂不作为第一优先级发布目标。
 
 ## 开发
 

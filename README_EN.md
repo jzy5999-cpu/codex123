@@ -20,23 +20,24 @@ codex123 is not an official OpenAI project and is not affiliated with, sponsored
 
 ## Current Scope
 
-- Only macOS Apple Silicon is supported for now.
-- The first version uses local builds and ad-hoc signing, without Apple Developer ID notarization.
+- macOS Apple Silicon and Windows x64 are supported for now.
+- macOS uses local builds and ad-hoc signing without Apple Developer ID notarization. Windows uses an NSIS installer and is not code-signed yet.
 - The ChatGPT mobile remote-control entry point, account eligibility, and remote session availability are controlled by OpenAI; codex123 cannot guarantee 100% availability.
 - This project only aims to keep local configuration from breaking the official ChatGPT login state while keeping relay requests and CDP injection enhancements usable together.
 
 ## Quick Start
 
-The first codex123 build targets Apple Silicon MacBook only:
+Release assets:
 
 - macOS Apple Silicon: `codex123-*-macos-arm64.dmg`
+- Windows x64: `codex123-*-windows-x64-setup.exe`
 
 After installation, two entry points are available:
 
 - `codex123`: a silent launcher. It does not show the manager UI and only starts Codex with codex123 injection.
 - `codex123 Manager`: a Tauri control panel for launch, diagnostics, repair, updates, relay injection, enhancements, and user scripts.
 
-The macOS DMG installs `/Applications/codex123.app` and `/Applications/codex123 管理工具.app`.
+The macOS DMG installs `/Applications/codex123.app` and `/Applications/codex123 管理工具.app`. The Windows setup installs `codex123.exe` and `codex123-manager.exe`, and creates `codex123` and `codex123 管理工具` shortcuts.
 
 Build a local macOS installer from source:
 
@@ -47,10 +48,28 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.1.3 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.0 arm64
 ```
 
-The generated file is `dist/macos/codex123-0.1.3-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+The generated file is `dist/macos/codex123-0.2.0-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+
+Windows installers are built by GitHub Actions on a Windows runner. Local Windows builds require the Rust MSVC toolchain, Node.js 22, and NSIS:
+
+```powershell
+cd C:\path\to\codex123
+cd apps\codex-plus-manager
+npm ci
+npm run vite:build
+cd ..\..
+cargo build --release --target x86_64-pc-windows-msvc
+New-Item -ItemType Directory -Force dist\windows\app
+Copy-Item target\x86_64-pc-windows-msvc\release\codex123.exe dist\windows\app\codex123.exe
+Copy-Item target\x86_64-pc-windows-msvc\release\codex123-manager.exe dist\windows\app\codex123-manager.exe
+cd scripts\installer\windows
+makensis /DVERSION=0.2.0 codex123.nsi
+```
+
+The generated file is `dist/windows/codex123-0.2.0-windows-x64-setup.exe`.
 
 ## Open Source and Thanks
 
@@ -70,8 +89,8 @@ Special thanks to [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/Codex
 - Zed open entry detects remote SSH context and opens the matching remote file in Zed Remote Development from Codex.
 - Upstream worktree creation: create new worktrees from `upstream/<base-branch>` after fetching the remote branch, reducing conflicts caused by stale local HEAD state.
 - GitHub Release updates. Both the manager and silent launcher can detect available updates.
-- Windows single instance, no console window, administrator manifest, and system Desktop path detection.
-- Separate macOS x64 and arm64 DMGs. The silent launcher hides its Dock icon.
+- Windows single instance, no console window, administrator manifest, NSIS installer, and system Desktop path detection.
+- macOS arm64 DMG. The silent launcher hides its Dock icon.
 
 ## Relay Injection
 
@@ -107,7 +126,7 @@ When relay injection mode is active, plugin entry unlock and forced plugin insta
 
 ## Updates and Packages
 
-codex123 publishes installers through GitHub Releases. Windows builds an NSIS installer, while macOS builds separate Intel x64 and Apple Silicon arm64 DMGs.
+codex123 publishes installers through GitHub Releases. Windows builds an NSIS x64 installer, while macOS builds an Apple Silicon arm64 DMG.
 
 The manager's About page can check and start updates. When the silent launcher finds a new version, it opens the manager directly on the update prompt.
 
@@ -150,9 +169,13 @@ The new worktree starts from the fresh remote tracking branch instead of the loc
 
 Unsigned and unnotarized builds may be blocked by Gatekeeper. Allow the app in System Settings -> Privacy & Security. For formal distribution, configure Apple Developer ID signing and notarization.
 
+### Does it support Windows?
+
+Yes. Releases provide a `windows-x64-setup.exe` installer. The first Windows installer is not code-signed, so SmartScreen may require manual confirmation.
+
 ### Does it support Intel Macs?
 
-Yes. Releases provide both `macos-x64.dmg` and `macos-arm64.dmg`. Intel Macs should use the x64 package, while Apple Silicon Macs should use the arm64 package.
+The current release workflow only publishes `macos-arm64.dmg`. Intel Macs are not the first-priority release target.
 
 ## Development
 

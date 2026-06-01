@@ -63,7 +63,7 @@ fn windows_binaries_request_administrator_privileges() {
         .and_then(std::path::Path::parent)
         .and_then(std::path::Path::parent)
         .unwrap()
-        .join("scripts/installer/windows/CodexPlusPlus.nsi");
+        .join("scripts/installer/windows/codex123.nsi");
     let windows_installer =
         std::fs::read_to_string(&windows_installer).expect("read windows installer");
 
@@ -72,6 +72,10 @@ fn windows_binaries_request_administrator_privileges() {
     assert!(windows_manifest.contains("requireAdministrator"));
     assert!(windows_manifest.contains("Microsoft.Windows.Common-Controls"));
     assert!(windows_installer.contains("RequestExecutionLevel admin"));
+    assert!(windows_installer.contains("codex123-${VERSION}-windows-x64-setup.exe"));
+    assert!(windows_installer.contains("codex123.exe"));
+    assert!(windows_installer.contains("codex123-manager.exe"));
+    assert!(!windows_installer.contains("CodexPlusPlus-${VERSION}"));
 }
 
 #[test]
@@ -109,7 +113,7 @@ fn macos_packager_hides_silent_launcher_but_not_manager() {
 }
 
 #[test]
-fn github_release_workflow_builds_macos_arm64_dmg_only() {
+fn github_release_workflow_builds_macos_arm64_and_windows_x64_assets() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let workflow = manifest_dir
         .parent()
@@ -125,6 +129,11 @@ fn github_release_workflow_builds_macos_arm64_dmg_only() {
     assert!(workflow.contains("aarch64-apple-darwin"));
     assert!(workflow.contains("package-dmg.sh \"$VERSION\" arm64"));
     assert!(workflow.contains("target/aarch64-apple-darwin/release"));
+    assert!(workflow.contains("windows-setup:"));
+    assert!(workflow.contains("windows-latest"));
+    assert!(workflow.contains("x86_64-pc-windows-msvc"));
+    assert!(workflow.contains("makensis /DVERSION=$version codex123.nsi"));
+    assert!(workflow.contains("dist/windows/codex123-*-windows-x64-setup.exe"));
 }
 
 #[test]

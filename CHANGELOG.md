@@ -1,5 +1,12 @@
 # 更新日志
 
+## 0.2.0 - 2026-06-01
+
+- 新增 Windows x64 NSIS 安装包发布链路，产物命名为 `codex123-<version>-windows-x64-setup.exe`。
+- Windows 安装入口、快捷方式、安装目录、卸载注册表项和发布包命名统一改为 `codex123`。
+- GitHub Release workflow 同时构建 macOS arm64 DMG 和 Windows x64 安装包，并把二者写入 `latest.json`。
+- README / README_EN 更新为 macOS + Windows 双平台说明。
+
 ## 0.1.3 - 2026-06-01
 
 - 移除 README 顶部旧 Codex++ 图标。

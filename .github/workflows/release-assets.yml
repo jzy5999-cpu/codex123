@@ -50,11 +50,66 @@ jobs:
           tag_name: ${{ github.event.release.tag_name }}
           files: dist/macos/codex123-*-macos-arm64.dmg
 
+  windows-setup:
+    name: Windows setup x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install NSIS
+        shell: powershell
+        run: choco install nsis -y
+
+      - name: Install frontend dependencies
+        working-directory: apps/codex-plus-manager
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: apps/codex-plus-manager
+        run: npm run vite:build
+
+      - name: Build binaries
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Stage Windows app
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force dist/windows/app | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/codex123.exe dist/windows/app/codex123.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/codex123-manager.exe dist/windows/app/codex123-manager.exe
+
+      - name: Build Windows installer
+        working-directory: scripts/installer/windows
+        shell: powershell
+        run: |
+          $version = "${env:GITHUB_REF_NAME}" -replace "^[vV]", ""
+          makensis /DVERSION=$version codex123.nsi
+
+      - name: Upload Windows installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/windows/codex123-*-windows-x64-setup.exe
+
   latest-json:
     name: Upload static latest.json
     runs-on: ubuntu-latest
     needs:
       - macos-dmg
+      - windows-setup
     steps:
       - name: Generate latest.json
         env:
