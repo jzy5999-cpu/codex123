@@ -6,6 +6,7 @@
 - Windows 安装入口、快捷方式、安装目录、卸载注册表项和发布包命名统一改为 `codex123`。
 - GitHub Release workflow 同时构建 macOS arm64 DMG 和 Windows x64 安装包，并把二者写入 `latest.json`。
 - README / README_EN 更新为 macOS + Windows 双平台说明。
+- 明确 Windows 版目前仅作为开发构建和 CI 产物提供，开发者使用 Mac，尚未在真实 Windows 设备上验证可用性。
 
 ## 0.1.3 - 2026-06-01
 

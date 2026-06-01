@@ -20,7 +20,8 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 
 ## 当前边界
 
-- 目前提供 macOS Apple Silicon 和 Windows x64 版本。
+- 目前主要支持 macOS Apple Silicon；Windows x64 版仅作为开发构建和 CI 产物提供。
+- 开发者使用 Mac 电脑，Windows 版尚未在真实 Windows 设备上验证，不承诺实际可用性。
 - macOS 第一版使用本地构建和 ad-hoc 签名，不做 Apple Developer ID 公证；Windows 第一版使用 NSIS 安装包，暂不做代码签名。
 - 手机 ChatGPT 远程控制入口、账号资格和远程会话能力由 OpenAI 官方控制，`codex123` 不能承诺 100% 可用。
 - 本项目只保证本地配置尽量不破坏官方 ChatGPT 登录态，并保持中转请求与 CDP 注入增强同时可用。
@@ -71,7 +72,7 @@ requires_openai_auth = true
 Release 产物为：
 
 - macOS Apple Silicon：`codex123-*-macos-arm64.dmg`
-- Windows x64：`codex123-*-windows-x64-setup.exe`
+- Windows x64：`codex123-*-windows-x64-setup.exe`（开发构建，未实机验证）
 
 安装后会有两个入口：
 
@@ -94,7 +95,7 @@ BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2
 
 生成文件位于 `dist/macos/codex123-0.2.0-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
 
-Windows 安装包由 GitHub Actions 在 Windows runner 上构建。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
+Windows 安装包由 GitHub Actions 在 Windows runner 上构建。由于开发者使用 Mac 电脑，Windows 版目前只完成代码、打包脚本和 CI 构建链路，尚未确认在真实 Windows 环境中的启动、注入和远控兼容行为。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
 
 ```powershell
 cd C:\path\to\codex123
@@ -186,7 +187,7 @@ experimental_bearer_token = "sk-..."
 
 ## 自动更新与安装包
 
-codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包。
+codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包；其中 Windows 安装包仅作为开发构建提供，尚未实机验证。
 
 管理工具的“关于”页可以检查并启动更新。静默启动器发现新版本时会拉起管理工具并进入更新提示。
 
@@ -231,7 +232,7 @@ git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 
 ### Windows 能用吗
 
-可以。Release 会提供 `windows-x64-setup.exe`。第一版 Windows 安装包暂不做代码签名，首次安装可能出现 SmartScreen 提示，需要手动确认来源后继续。
+目前只能说“有 Windows x64 开发构建”，不能承诺实际可用。开发者使用 Mac 电脑，Windows 安装包由 GitHub Actions 生成，尚未在真实 Windows 设备上验证启动、CDP 注入、快捷方式、卸载和远控兼容中转行为。第一版 Windows 安装包暂不做代码签名，首次安装可能出现 SmartScreen 提示，需要手动确认来源后继续。
 
 ### macOS Intel 能用吗
 
