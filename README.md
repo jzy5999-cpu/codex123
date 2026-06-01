@@ -103,10 +103,10 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.1 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.2 arm64
 ```
 
-生成文件位于 `dist/macos/codex123-0.2.1-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+生成文件位于 `dist/macos/codex123-0.2.2-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
 
 Windows 安装包由 GitHub Actions 在 Windows runner 上构建。由于开发者使用 Mac 电脑，Windows 版目前只完成代码、打包脚本和 CI 构建链路，尚未确认在真实 Windows 环境中的启动、注入和远控兼容行为。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
 
@@ -121,10 +121,10 @@ New-Item -ItemType Directory -Force dist\windows\app
 Copy-Item target\x86_64-pc-windows-msvc\release\codex123.exe dist\windows\app\codex123.exe
 Copy-Item target\x86_64-pc-windows-msvc\release\codex123-manager.exe dist\windows\app\codex123-manager.exe
 cd scripts\installer\windows
-makensis /DVERSION=0.2.1 codex123.nsi
+makensis /DVERSION=0.2.2 codex123.nsi
 ```
 
-生成文件位于 `dist/windows/codex123-0.2.1-windows-x64-setup.exe`。
+生成文件位于 `dist/windows/codex123-0.2.2-windows-x64-setup.exe`。
 
 ## 开源与致谢
 

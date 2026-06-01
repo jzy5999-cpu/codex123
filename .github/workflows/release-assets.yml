@@ -96,7 +96,11 @@ jobs:
         shell: powershell
         run: |
           $version = "${env:GITHUB_REF_NAME}" -replace "^[vV]", ""
-          makensis /DVERSION=$version codex123.nsi
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (!(Test-Path $makensis)) {
+            $makensis = "${env:ProgramFiles}\NSIS\makensis.exe"
+          }
+          & $makensis /DVERSION=$version codex123.nsi
 
       - name: Upload Windows installer
         uses: softprops/action-gh-release@v2

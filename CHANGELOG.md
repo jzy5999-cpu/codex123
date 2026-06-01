@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.2.2 - 2026-06-01
+
+- 修复 GitHub Actions Windows Release job 中 NSIS `makensis` 未进入 PATH 导致发布失败的问题。
+- 重新发布安装包链路，用于生成可供“检查更新”读取的 `latest.json`。
+
 ## 0.2.1 - 2026-06-01
 
 - 修复远控兼容中转供应商切换后 `experimental_bearer_token` 被迁移走，导致回切时提示未填写 API Key 的问题。
