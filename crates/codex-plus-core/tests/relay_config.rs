@@ -437,6 +437,48 @@ experimental_bearer_token = "sk-remote"
 }
 
 #[test]
+fn apply_remote_relay_profile_uses_live_auth_instead_of_stored_profile_auth() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","tokens":{"access_token":"live-token","refresh_token":"live-refresh"},"OPENAI_API_KEY":"old-live-key"}"#,
+    )
+    .unwrap();
+    let profile = RelayProfile {
+        id: "remote-relay".to_string(),
+        relay_mode: RelayMode::RemoteRelay,
+        config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-remote"
+"#
+        .to_string(),
+        auth_contents: r#"{"auth_mode":"chatgpt","tokens":{"access_token":"stale-token","refresh_token":"stale-refresh"},"OPENAI_API_KEY":"stale-key"}"#.to_string(),
+        ..RelayProfile::default()
+    };
+
+    apply_relay_profile_to_home_with_switch_rules(temp.path(), &profile, "").unwrap();
+
+    let auth = std::fs::read_to_string(temp.path().join("auth.json")).unwrap();
+    let auth: serde_json::Value = serde_json::from_str(&auth).unwrap();
+    assert_eq!(auth["auth_mode"], "chatgpt");
+    assert_eq!(auth["tokens"]["access_token"], "live-token");
+    assert_eq!(auth["tokens"]["refresh_token"], "live-refresh");
+    assert_eq!(auth["OPENAI_API_KEY"], serde_json::Value::Null);
+    assert!(!auth.to_string().contains("stale-token"));
+    assert!(!auth.to_string().contains("stale-refresh"));
+    assert!(!auth.to_string().contains("stale-key"));
+
+    let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
+    assert!(config.contains(r#"model_provider = "codex123""#));
+    assert!(config.contains(r#"experimental_bearer_token = "sk-remote""#));
+}
+
+#[test]
 fn backfill_remote_relay_profile_preserves_bearer_token_in_config() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(

@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.2.3 - 2026-06-02
+
+- 修复远控兼容中转切换时可能使用供应商中保存的旧 `auth.json`，导致重新登录后的官方 ChatGPT 账号被旧账号覆盖、手机端看不到 Codex 的问题。
+- RemoteRelay 切换现在始终以当前 `~/.codex/auth.json` 的实时官方登录态为准，并只把 `OPENAI_API_KEY` 归一化为 `null`。
+
 ## 0.2.2 - 2026-06-01
 
 - 修复 GitHub Actions Windows Release job 中 NSIS `makensis` 未进入 PATH 导致发布失败的问题。

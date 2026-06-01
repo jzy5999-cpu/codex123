@@ -49,12 +49,12 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.2 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.3 arm64
 ```
 
-The generated file is `dist/macos/codex123-0.2.2-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+The generated file is `dist/macos/codex123-0.2.3-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
 
-Windows installers are built by GitHub Actions on a Windows runner. Because the developer uses a Mac, the Windows build currently only covers code, packaging scripts, and CI build flow; launch behavior, CDP injection, and remote-control-compatible relay behavior have not been verified on a real Windows environment. Local Windows builds require the Rust MSVC toolchain, Node.js 22, and NSIS:
+Windows packaging is kept as a development build path and is not updated by the `0.2.3` macOS fix release. Because the developer uses a Mac, the Windows build currently only covers code and packaging scripts; launch behavior, CDP injection, and remote-control-compatible relay behavior have not been verified on a real Windows environment. Local Windows builds require the Rust MSVC toolchain, Node.js 22, and NSIS:
 
 ```powershell
 cd C:\path\to\codex123
@@ -70,7 +70,7 @@ cd scripts\installer\windows
 makensis /DVERSION=0.2.2 codex123.nsi
 ```
 
-The generated file is `dist/windows/codex123-0.2.2-windows-x64-setup.exe`.
+The Windows installer path is kept at `dist/windows/codex123-0.2.2-windows-x64-setup.exe` for the last development build. Windows is not updated by the `0.2.3` macOS-only fix release.
 
 ## DeepSeek / Chat Completions Compatibility
 

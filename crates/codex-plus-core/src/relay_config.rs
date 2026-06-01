@@ -1450,12 +1450,10 @@ fn official_profile_auth_for_switch(home: &Path, auth_contents: &str) -> anyhow:
     remove_openai_api_key_from_auth_contents(&source)
 }
 
-fn remote_relay_auth_for_switch(home: &Path, auth_contents: &str) -> anyhow::Result<String> {
-    let source = if auth_contents.trim().is_empty() {
-        read_optional_text(&home.join("auth.json"))?
-    } else {
-        auth_contents.to_string()
-    };
+fn remote_relay_auth_for_switch(home: &Path, _auth_contents: &str) -> anyhow::Result<String> {
+    // RemoteRelay must preserve the live official ChatGPT account. Stored profile
+    // auth may be stale after the user logs in again, which breaks phone remote control.
+    let source = read_optional_text(&home.join("auth.json"))?;
     enforce_remote_relay_auth_contents(&source)
 }
 
