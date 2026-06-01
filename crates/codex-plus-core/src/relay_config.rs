@@ -1408,6 +1408,12 @@ fn restore_profile_auth_from_live_config(
     profile: &mut RelayProfile,
     template_auth: &str,
 ) -> anyhow::Result<()> {
+    if profile.relay_mode == RelayMode::RemoteRelay
+        || (profile.relay_mode == RelayMode::Official && profile.official_mix_api_key)
+    {
+        return Ok(());
+    }
+
     let Some(token) = experimental_bearer_token_from_config(&profile.config_contents)? else {
         return Ok(());
     };

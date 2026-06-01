@@ -437,6 +437,57 @@ experimental_bearer_token = "sk-remote"
 }
 
 #[test]
+fn backfill_remote_relay_profile_preserves_bearer_token_in_config() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("config.toml"),
+        r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-remote"
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","tokens":{"access_token":"official"},"OPENAI_API_KEY":null}"#,
+    )
+    .unwrap();
+
+    let mut profile = RelayProfile {
+        id: "remote-relay".to_string(),
+        relay_mode: RelayMode::RemoteRelay,
+        config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-old"
+"#
+        .to_string(),
+        auth_contents: String::new(),
+        ..RelayProfile::default()
+    };
+    let mut common = String::new();
+
+    backfill_relay_profile_from_home_with_common(temp.path(), &mut profile, &mut common).unwrap();
+
+    assert!(
+        profile
+            .config_contents
+            .contains(r#"experimental_bearer_token = "sk-remote""#)
+    );
+    assert!(!profile.auth_contents.contains("sk-remote"));
+    assert!(profile.auth_contents.contains(r#""auth_mode":"chatgpt""#));
+}
+
+#[test]
 fn apply_remote_relay_profile_rejects_missing_live_login() {
     let temp = tempfile::tempdir().unwrap();
     let profile = RelayProfile {
