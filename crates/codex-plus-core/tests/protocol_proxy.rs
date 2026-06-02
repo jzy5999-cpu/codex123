@@ -1,7 +1,8 @@
 use codex_plus_core::protocol_proxy::{
     ChatSseToResponsesConverter, chat_completion_to_response,
     chat_completion_to_response_with_request, chat_completions_url, chat_sse_to_responses_sse,
-    chat_sse_to_responses_sse_with_request, is_models_proxy_path, models_url,
+    chat_sse_to_responses_sse_with_request, is_chat_completions_proxy_path, is_models_proxy_path,
+    is_responses_proxy_path, models_url, responses_error_from_upstream,
     responses_to_chat_completions,
 };
 use serde_json::json;
@@ -58,6 +59,48 @@ fn responses_request_converts_to_chat_completions() {
             ]
         })
     );
+}
+
+#[test]
+fn proxy_path_matchers_accept_codex_and_double_v1_prefixes() {
+    assert!(is_responses_proxy_path("/v1/v1/responses"));
+    assert!(is_responses_proxy_path("/codex/v1/responses/compact"));
+    assert!(is_chat_completions_proxy_path("/v1/v1/chat/completions"));
+    assert!(is_chat_completions_proxy_path(
+        "/codex/v1/chat/completions?stream=true"
+    ));
+    assert!(is_models_proxy_path("/v1/v1/models"));
+    assert!(is_models_proxy_path("/codex/v1/models"));
+}
+
+#[test]
+fn upstream_error_is_normalized_to_responses_error_shape() {
+    let error = responses_error_from_upstream(
+        403,
+        "application/json",
+        br#"{"error":{"message":"model denied","type":"permission_error","code":"model_permission","param":"model"}}"#,
+    );
+
+    assert_eq!(
+        error,
+        json!({
+            "error": {
+                "message": "model denied",
+                "type": "permission_error",
+                "code": "model_permission",
+                "param": "model"
+            }
+        })
+    );
+}
+
+#[test]
+fn non_json_upstream_error_uses_status_code() {
+    let error = responses_error_from_upstream(502, "text/plain", b"bad gateway");
+
+    assert_eq!(error["error"]["message"], "bad gateway");
+    assert_eq!(error["error"]["type"], "upstream_error");
+    assert_eq!(error["error"]["code"], "502");
 }
 
 #[test]

@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   ArrowLeft,
   Bell,
@@ -205,6 +205,23 @@ type RelayResult = CommandResult<{
   backupPath: string | null;
 }>;
 
+type RemoteRelayDiagnostics = {
+  ready: boolean;
+  authModeChatgpt: boolean;
+  authApiKeyEmpty: boolean;
+  authenticated: boolean;
+  accountLabel: string | null;
+  activeProvider: string | null;
+  providerExists: boolean;
+  hasBaseUrl: boolean;
+  wireApiResponses: boolean;
+  requiresOpenaiAuth: boolean;
+  hasBearerToken: boolean;
+  configPath: string;
+  authPath: string;
+  issues: string[];
+};
+
 type RelayFilesResult = CommandResult<{
   configPath: string;
   authPath: string;
@@ -259,6 +276,7 @@ type LogsResult = CommandResult<{
 
 type DiagnosticsResult = CommandResult<{
   report: string;
+  remoteRelay: RemoteRelayDiagnostics;
 }>;
 
 type WatcherResult = CommandResult<{
@@ -547,6 +565,20 @@ export function App() {
     }
   };
 
+  const exportDiagnostics = async () => {
+    const target = await save({
+      title: "导出 codex123 诊断报告",
+      defaultPath: `codex123-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!target) return;
+    const result = await run(() => call<DiagnosticsResult>("export_diagnostics", { request: { path: target } }));
+    if (result) {
+      setDiagnostics(result);
+      showResultNotice("诊断报告导出", result);
+    }
+  };
+
   const refreshWatcher = async (silent = false) => {
     const result = await run(() => call<WatcherResult>("load_watcher_state"));
     if (result) {
@@ -562,6 +594,7 @@ export function App() {
       await refreshSettings(true);
       await refreshRelay(true);
       await refreshRelayFiles(true);
+      await refreshDiagnostics(true);
     }
     if (next === "context") {
       await refreshSettings(true);
@@ -1195,6 +1228,7 @@ export function App() {
       showMessage: async (title: string, message: string, status?: Status) => showNotice(title, message, status),
       copyLogs: () => copyText(logs?.text ?? "", "日志已复制。"),
       copyDiagnostics: () => copyText(diagnostics?.report ?? "", "诊断报告已复制。"),
+      exportDiagnostics,
       goLogs: () => navigate("about"),
       checkHealth: async () => {
         await refreshOverview(true);
@@ -1292,6 +1326,7 @@ export function App() {
             <RelayScreen
               settings={settings}
               relayFiles={relayFiles}
+              diagnostics={diagnostics}
               form={settingsForm}
               onFormChange={setSettingsForm}
               actions={actions}
@@ -1393,6 +1428,7 @@ type Actions = {
   showMessage: (title: string, message: string, status?: Status) => Promise<void>;
   copyLogs: () => Promise<void>;
   copyDiagnostics: () => Promise<void>;
+  exportDiagnostics: () => Promise<void>;
   goLogs: () => Promise<void>;
   installWatcher: () => Promise<void>;
   uninstallWatcher: () => Promise<void>;
@@ -1472,12 +1508,14 @@ function OverviewScreen({
 function RelayScreen({
   settings: _settings,
   relayFiles,
+  diagnostics,
   form,
   onFormChange,
   actions,
 }: {
   settings: SettingsResult | null;
   relayFiles: RelayFilesResult | null;
+  diagnostics: DiagnosticsResult | null;
   form: BackendSettings;
   onFormChange: (value: BackendSettings) => void;
   actions: Actions;
@@ -1539,6 +1577,7 @@ function RelayScreen({
 
   return (
     <>
+      <RemoteRelayDiagnosticsPanel diagnostics={diagnostics?.remoteRelay ?? null} actions={actions} />
       <Panel>
         <CardHead title="供应商列表" detail={`${normalized.relayProfiles.length} 个供应商配置；可拖动排序，点编辑进入详情`} />
         <CardContent>
@@ -1596,6 +1635,80 @@ function RelayScreen({
         </CardContent>
       </Panel>
     </>
+  );
+}
+
+function RemoteRelayDiagnosticsPanel({
+  diagnostics,
+  actions,
+}: {
+  diagnostics: RemoteRelayDiagnostics | null;
+  actions: Actions;
+}) {
+  const ready = diagnostics?.ready === true;
+  const checks = diagnostics
+    ? [
+        { label: "官方 ChatGPT 登录态", ok: diagnostics.authenticated },
+        { label: "auth_mode = chatgpt", ok: diagnostics.authModeChatgpt },
+        { label: "auth.json 未保存 API Key", ok: diagnostics.authApiKeyEmpty },
+        { label: "当前 provider 存在", ok: diagnostics.providerExists },
+        { label: "base_url 已配置", ok: diagnostics.hasBaseUrl },
+        { label: "wire_api = responses", ok: diagnostics.wireApiResponses },
+        { label: "requires_openai_auth = true", ok: diagnostics.requiresOpenaiAuth },
+        { label: "experimental_bearer_token 已配置", ok: diagnostics.hasBearerToken },
+      ]
+    : [];
+  return (
+    <Panel>
+      <CardHead
+        title="远控兼容中转诊断"
+        detail="只检查本地配置是否保留手机远控前提；手机入口仍取决于 OpenAI 官方账号权限和功能状态"
+      />
+      <CardContent>
+        <div className="metric-list">
+          <Metric label="状态" value={diagnostics ? (ready ? "就绪" : "需要修复") : "尚未生成"} />
+          <Metric label="账号" value={diagnostics?.accountLabel ?? (diagnostics?.authenticated ? "已登录" : "未检测到")} />
+          <Metric label="当前 Provider" value={diagnostics?.activeProvider ?? "-"} />
+          <Metric label="配置路径" value={diagnostics?.configPath ?? "-"} />
+        </div>
+        {diagnostics ? (
+          <>
+            <div className="diagnostic-check-grid">
+              {checks.map((check) => (
+                <div className={`diagnostic-check ${check.ok ? "ok" : "failed"}`} key={check.label}>
+                  {check.ok ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                  <span>{check.label}</span>
+                </div>
+              ))}
+            </div>
+            {diagnostics.issues.length ? (
+              <div className="issue-list">
+                {diagnostics.issues.map((issue) => (
+                  <div className="issue-item" key={issue}>{issue}</div>
+                ))}
+              </div>
+            ) : (
+              <div className="hint-line">
+                <ShieldCheck className="h-4 w-4" />
+                <span>本地配置满足远控兼容中转前提。</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="empty">点击刷新诊断后显示当前 live 配置状态。</div>
+        )}
+        <Toolbar>
+          <Button onClick={() => void actions.refreshDiagnostics()}>
+            <RefreshCw className="h-4 w-4" />
+            刷新诊断
+          </Button>
+          <Button variant="secondary" onClick={() => void actions.copyDiagnostics()}>
+            <Copy className="h-4 w-4" />
+            复制报告
+          </Button>
+        </Toolbar>
+      </CardContent>
+    </Panel>
   );
 }
 
@@ -1920,15 +2033,16 @@ function AboutScreen({
         </CardContent>
       </Panel>
       <Panel>
-        <CardHead title="GitHub Release 更新" detail={`当前版本 ${overview?.current_version ?? update?.currentVersion ?? "-"}`} />
+        <CardHead title="GitHub Release 更新" detail={`本机运行版本 ${overview?.current_version ?? update?.currentVersion ?? "-"}`} />
         <CardContent>
           <div className="metric-list">
             <Metric label="状态" value={update?.status ?? "not_checked"} />
-            <Metric label="最新版本" value={update?.latestVersion ?? "未检查"} />
+            <Metric label="本机运行版本" value={overview?.current_version ?? update?.currentVersion ?? "-"} />
+            <Metric label="线上 Release 版本" value={update?.latestVersion ?? "未检查"} />
             <Metric label="资源" value={update?.assetName ?? "-"} />
             <Metric label="进度" value={`${update?.progress ?? 0}%`} />
           </div>
-          <Textarea className="log-view" readOnly value={update?.releaseSummary || update?.message || "尚未检查 GitHub Release；更新会下载并启动安装包。"} />
+          <Textarea className="log-view" readOnly value={update?.releaseSummary || update?.message || "尚未检查 GitHub Release；这里显示线上 Release 状态，本机手动安装的未发布版本可能高于线上版本。"} />
           <Toolbar>
             <Button onClick={() => void actions.checkUpdate()}>检查更新</Button>
             <Button variant="secondary" onClick={() => void actions.performUpdate()}>下载并运行安装包</Button>
@@ -2069,13 +2183,17 @@ function LogsPanel({ logs, actions }: { logs: LogsResult | null; actions: Action
 function DiagnosticsPanel({ diagnostics, actions }: { diagnostics: DiagnosticsResult | null; actions: Actions }) {
   return (
     <Panel>
-      <CardHead title="诊断报告" detail="包含版本、路径、设置和平台信息" />
+      <CardHead title="诊断报告" detail="包含版本、路径、远控中转前提、设置和平台信息；密钥与 token 已脱敏" />
       <CardContent>
         <Textarea className="log-view tall" readOnly value={diagnostics?.report ?? "尚未生成诊断报告。"} />
         <Toolbar>
           <Button onClick={() => void actions.refreshDiagnostics()}>重新生成</Button>
           <Button variant="secondary" onClick={() => void actions.copyDiagnostics()}>
             复制报告
+          </Button>
+          <Button variant="secondary" onClick={() => void actions.exportDiagnostics()}>
+            <Download className="h-4 w-4" />
+            导出文件
           </Button>
         </Toolbar>
       </CardContent>

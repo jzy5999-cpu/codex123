@@ -36,6 +36,16 @@ fn app_paths_find_latest_windows_package_prefers_highest_version_app_dir() {
 }
 
 #[test]
+fn launcher_helper_routes_chat_completions_proxy() {
+    let source =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/launcher.rs")).unwrap();
+
+    assert!(source.contains("is_chat_completions_proxy_path(path)"));
+    assert!(source.contains("handle_chat_completions_proxy_connection"));
+    assert!(source.contains("open_chat_completions_proxy_request"));
+}
+
+#[test]
 fn app_paths_find_latest_windows_package_returns_package_when_app_dir_missing() {
     let temp = tempfile::tempdir().unwrap();
     let package = temp.path().join("OpenAI.Codex_26.429.8261.0_x64__abc");

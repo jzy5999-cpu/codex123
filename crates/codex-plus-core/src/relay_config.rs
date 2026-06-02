@@ -54,6 +54,25 @@ pub struct RelayStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RemoteRelayDiagnostics {
+    pub ready: bool,
+    pub auth_mode_chatgpt: bool,
+    pub auth_api_key_empty: bool,
+    pub authenticated: bool,
+    pub account_label: Option<String>,
+    pub active_provider: Option<String>,
+    pub provider_exists: bool,
+    pub has_base_url: bool,
+    pub wire_api_responses: bool,
+    pub requires_openai_auth: bool,
+    pub has_bearer_token: bool,
+    pub config_path: String,
+    pub auth_path: String,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RelayApplyResult {
     pub config_path: String,
     pub backup_path: Option<String>,
@@ -173,6 +192,89 @@ pub fn relay_status_from_home(home: &Path) -> RelayStatus {
         configured: config.configured,
         requires_openai_auth: config.requires_openai_auth,
         has_bearer_token: config.has_bearer_token,
+    }
+}
+
+pub fn remote_relay_diagnostics_from_home(home: &Path) -> RemoteRelayDiagnostics {
+    let config_path = home.join("config.toml");
+    let auth_path = home.join("auth.json");
+    let config_contents = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let auth_contents = std::fs::read_to_string(&auth_path).unwrap_or_default();
+    let auth = chatgpt_auth_status_from_home(home);
+    let auth_mode_chatgpt = auth_json_auth_mode(&auth_contents)
+        .map(|mode| mode.eq_ignore_ascii_case("chatgpt"))
+        .unwrap_or(false);
+    let auth_api_key_empty = codex_auth_api_key(&auth_contents).is_none();
+    let active_provider = root_key_string(&config_contents, "model_provider");
+    let provider_values = active_provider.as_ref().and_then(|provider| {
+        table_values(&config_contents, &format!("model_providers.{provider}"))
+    });
+    let provider_exists = provider_values.is_some();
+    let has_base_url = provider_values
+        .as_ref()
+        .and_then(|values| values.get("base_url"))
+        .map(|value| !unquote_toml_string(value).trim().is_empty())
+        .unwrap_or(false);
+    let wire_api_responses = provider_values
+        .as_ref()
+        .and_then(|values| values.get("wire_api"))
+        .map(|value| unquote_toml_string(value).eq_ignore_ascii_case("responses"))
+        .unwrap_or(false);
+    let requires_openai_auth = provider_values
+        .as_ref()
+        .and_then(|values| values.get("requires_openai_auth"))
+        .map(|value| value.trim() == "true")
+        .unwrap_or(false);
+    let has_bearer_token = provider_values
+        .as_ref()
+        .and_then(|values| values.get("experimental_bearer_token"))
+        .map(|value| !unquote_toml_string(value).trim().is_empty())
+        .unwrap_or(false);
+
+    let mut issues = Vec::new();
+    if !auth.authenticated {
+        issues.push("未检测到官方 ChatGPT 登录态。".to_string());
+    }
+    if !auth_mode_chatgpt {
+        issues.push(r#"auth.json 的 auth_mode 不是 "chatgpt"。"#.to_string());
+    }
+    if !auth_api_key_empty {
+        issues.push("auth.json 中仍存在 OPENAI_API_KEY，会破坏远控兼容前提。".to_string());
+    }
+    if active_provider.is_none() {
+        issues.push("config.toml 缺少 model_provider。".to_string());
+    }
+    if !provider_exists {
+        issues.push("config.toml 缺少当前 model_provider 对应的 provider 表。".to_string());
+    }
+    if !has_base_url {
+        issues.push("当前 provider 缺少 base_url。".to_string());
+    }
+    if !wire_api_responses {
+        issues.push(r#"当前 provider 的 wire_api 不是 "responses"。"#.to_string());
+    }
+    if !requires_openai_auth {
+        issues.push("当前 provider 缺少 requires_openai_auth = true。".to_string());
+    }
+    if !has_bearer_token {
+        issues.push("当前 provider 缺少 experimental_bearer_token。".to_string());
+    }
+
+    RemoteRelayDiagnostics {
+        ready: issues.is_empty(),
+        auth_mode_chatgpt,
+        auth_api_key_empty,
+        authenticated: auth.authenticated,
+        account_label: auth.account_label,
+        active_provider,
+        provider_exists,
+        has_base_url,
+        wire_api_responses,
+        requires_openai_auth,
+        has_bearer_token,
+        config_path: config_path.to_string_lossy().to_string(),
+        auth_path: auth_path.to_string_lossy().to_string(),
+        issues,
     }
 }
 
@@ -1495,6 +1597,15 @@ fn codex_auth_api_key(auth_contents: &str) -> Option<String> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
+        .map(ToString::to_string)
+}
+
+fn auth_json_auth_mode(auth_contents: &str) -> Option<String> {
+    let auth: Value = serde_json::from_str(auth_contents).ok()?;
+    auth.get("auth_mode")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|mode| !mode.is_empty())
         .map(ToString::to_string)
 }
 

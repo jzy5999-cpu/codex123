@@ -7,6 +7,7 @@
 - `codex123` 是非官方 Codex App 外部增强工具，目标是更好地使用 Codex，开发经验优先。
 - 本项目致敬并基于 `BigPizzaV3/CodexPlusPlus`，需要保留上游来源、致谢和独立项目声明。
 - 当前第一版只面向 macOS Apple Silicon；不要默认补 Windows/Linux 支持，除非用户明确要求。
+- 后续版本默认只更新 macOS 版；没有用户明确要求时，不更新 Windows 版本、Windows 安装包、Windows Release 资产或 Windows 发布流程。
 - 不直接修改 Codex App 原始安装文件，不修改 `app.asar`；增强能力应继续走外部 launcher 和 Chromium DevTools Protocol 注入路径。
 
 ## 工作原则

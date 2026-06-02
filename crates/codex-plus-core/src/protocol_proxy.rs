@@ -27,6 +27,7 @@ const EXTRA_CHAT_PASSTHROUGH_FIELDS: &[&str] = &[
     "top_logprobs",
     "user",
 ];
+const ERROR_BODY_PREVIEW_LIMIT: usize = 1024;
 
 #[derive(Debug, Clone, Default)]
 struct CodexToolContext {
@@ -388,13 +389,34 @@ pub fn is_responses_proxy_path(path: &str) -> bool {
     let path = path.split_once('?').map_or(path, |(path, _)| path);
     matches!(
         path,
-        "/responses" | "/v1/responses" | "/responses/compact" | "/v1/responses/compact"
+        "/responses"
+            | "/v1/responses"
+            | "/v1/v1/responses"
+            | "/codex/v1/responses"
+            | "/responses/compact"
+            | "/v1/responses/compact"
+            | "/v1/v1/responses/compact"
+            | "/codex/v1/responses/compact"
+    )
+}
+
+pub fn is_chat_completions_proxy_path(path: &str) -> bool {
+    let path = path.split_once('?').map_or(path, |(path, _)| path);
+    matches!(
+        path,
+        "/chat/completions"
+            | "/v1/chat/completions"
+            | "/v1/v1/chat/completions"
+            | "/codex/v1/chat/completions"
     )
 }
 
 pub fn is_models_proxy_path(path: &str) -> bool {
     let path = path.split_once('?').map_or(path, |(path, _)| path);
-    matches!(path, "/models" | "/v1/models")
+    matches!(
+        path,
+        "/models" | "/v1/models" | "/v1/v1/models" | "/codex/v1/models"
+    )
 }
 
 pub async fn open_responses_proxy_request(body: &str) -> anyhow::Result<UpstreamProxyResponse> {
@@ -473,6 +495,49 @@ pub async fn open_models_proxy_request() -> anyhow::Result<UpstreamProxyResponse
     })
 }
 
+pub async fn open_chat_completions_proxy_request(
+    body: &str,
+) -> anyhow::Result<UpstreamProxyResponse> {
+    let settings = SettingsStore::default().load().unwrap_or_default();
+    let relay = settings.active_relay_profile();
+    if relay.protocol != RelayProtocol::ChatCompletions {
+        anyhow::bail!("当前中转未启用 Chat Completions 协议代理");
+    }
+    if relay.base_url.trim().is_empty() {
+        anyhow::bail!("Chat Completions 上游 Base URL 不能为空");
+    }
+    if relay.api_key.trim().is_empty() {
+        anyhow::bail!("Chat Completions 上游 Key 不能为空");
+    }
+
+    let request_json: Value = serde_json::from_str(body)?;
+    let is_stream = request_json
+        .get("stream")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let upstream = reqwest::Client::new()
+        .post(chat_completions_url(&relay.base_url))
+        .bearer_auth(relay.api_key.trim())
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .json(&request_json)
+        .send()
+        .await?;
+    let status_code = upstream.status().as_u16();
+    let content_type = upstream
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    Ok(UpstreamProxyResponse {
+        status_code,
+        is_stream: is_stream || content_type.contains("text/event-stream"),
+        content_type,
+        response: upstream,
+    })
+}
+
 pub async fn handle_responses_proxy_request(body: &str) -> anyhow::Result<ProxyHttpResponse> {
     let request_json: Value = serde_json::from_str(body)?;
     let upstream = open_responses_proxy_request(body).await?;
@@ -482,14 +547,12 @@ pub async fn handle_responses_proxy_request(body: &str) -> anyhow::Result<ProxyH
     let upstream_body = upstream.response.bytes().await?;
 
     if !(200..300).contains(&status_code) {
+        let error =
+            responses_error_from_upstream(status_code, &upstream_content_type, &upstream_body);
         return Ok(ProxyHttpResponse {
             status: http_status_line(status_code),
-            content_type: if upstream_content_type.is_empty() {
-                "application/json; charset=utf-8".to_string()
-            } else {
-                upstream_content_type
-            },
-            body: upstream_body.to_vec(),
+            content_type: "application/json; charset=utf-8".to_string(),
+            body: serde_json::to_vec(&error)?,
         });
     }
 
@@ -1371,6 +1434,70 @@ fn http_status_line(status: u16) -> String {
         503 => "503 Service Unavailable".to_string(),
         _ => format!("{status} Upstream"),
     }
+}
+
+pub fn responses_error_from_upstream(status_code: u16, content_type: &str, body: &[u8]) -> Value {
+    let (message, error_type, code, param) = upstream_error_parts(status_code, content_type, body);
+    let mut error = json!({
+        "message": message,
+        "type": error_type.unwrap_or_else(|| "upstream_error".to_string()),
+    });
+    if let Some(code) = code {
+        error["code"] = json!(code);
+    }
+    if let Some(param) = param {
+        error["param"] = json!(param);
+    }
+    json!({ "error": error })
+}
+
+fn upstream_error_parts(
+    status_code: u16,
+    content_type: &str,
+    body: &[u8],
+) -> (String, Option<String>, Option<String>, Option<String>) {
+    if content_type.to_ascii_lowercase().contains("json") {
+        if let Ok(value) = serde_json::from_slice::<Value>(body) {
+            let error = value.get("error").unwrap_or(&value);
+            let message = error
+                .get("message")
+                .or_else(|| error.get("detail"))
+                .or_else(|| error.get("error"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+                .unwrap_or_else(|| truncate_error_preview(&value.to_string()));
+            let error_type = error
+                .get("type")
+                .or_else(|| error.get("error_type"))
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+            let code = error.get("code").and_then(|value| {
+                value
+                    .as_str()
+                    .map(ToString::to_string)
+                    .or_else(|| value.as_i64().map(|number| number.to_string()))
+            });
+            let param = error
+                .get("param")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+            return (message, error_type, code, param);
+        }
+    }
+
+    let preview = truncate_error_preview(&String::from_utf8_lossy(body));
+    let message = if preview.trim().is_empty() {
+        format!("Upstream returned HTTP {status_code}")
+    } else {
+        preview
+    };
+    (message, None, Some(status_code.to_string()), None)
+}
+
+fn truncate_error_preview(input: &str) -> String {
+    input.chars().take(ERROR_BODY_PREVIEW_LIMIT).collect()
 }
 
 fn append_responses_input(input: &Value, messages: &mut Vec<Value>) {

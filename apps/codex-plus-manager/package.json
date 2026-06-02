@@ -1,6 +1,6 @@
 {
   "name": "codex123-manager",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "private": true,
   "type": "module",
   "scripts": {

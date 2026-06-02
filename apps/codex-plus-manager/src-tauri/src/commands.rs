@@ -196,6 +196,14 @@ pub struct LogsPayload {
 #[derive(Debug, Clone, Serialize)]
 pub struct DiagnosticsPayload {
     pub report: String,
+    #[serde(rename = "remoteRelay")]
+    pub remote_relay: codex_plus_core::relay_config::RemoteRelayDiagnostics,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportDiagnosticsRequest {
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1031,12 +1039,23 @@ pub fn read_latest_logs(request: LogRequest) -> CommandResult<LogsPayload> {
 
 #[tauri::command]
 pub fn copy_diagnostics() -> CommandResult<DiagnosticsPayload> {
-    ok(
-        "诊断报告已生成。",
-        DiagnosticsPayload {
-            report: diagnostics_report(),
-        },
-    )
+    ok("诊断报告已生成。", diagnostics_payload())
+}
+
+#[tauri::command]
+pub fn export_diagnostics(request: ExportDiagnosticsRequest) -> CommandResult<DiagnosticsPayload> {
+    let path = PathBuf::from(request.path.trim());
+    if path.as_os_str().is_empty() {
+        return failed("导出路径不能为空。", diagnostics_payload());
+    }
+    let payload = diagnostics_payload();
+    match fs::write(&path, payload.report.as_bytes()) {
+        Ok(()) => ok(
+            &format!("诊断报告已导出到 {}。", path.to_string_lossy()),
+            payload,
+        ),
+        Err(error) => failed(&format!("导出诊断报告失败：{error}"), payload),
+    }
 }
 
 #[tauri::command]
@@ -2065,6 +2084,9 @@ fn diagnostics_report() -> String {
         "generatedAtMs": generated_at_ms,
         "version": codex_plus_core::version::VERSION,
         "overview": overview.payload,
+        "remoteRelay": codex_plus_core::relay_config::remote_relay_diagnostics_from_home(
+            &codex_plus_core::relay_config::default_codex_home_dir()
+        ),
         "settings": redacted_settings_report(&settings),
         "logs": {
             "diagnosticLogPath": codex_plus_core::paths::default_diagnostic_log_path(),
@@ -2076,6 +2098,15 @@ fn diagnostics_report() -> String {
         }
     }))
     .unwrap_or_else(|error| format!("诊断报告序列化失败：{error}"))
+}
+
+fn diagnostics_payload() -> DiagnosticsPayload {
+    DiagnosticsPayload {
+        report: diagnostics_report(),
+        remote_relay: codex_plus_core::relay_config::remote_relay_diagnostics_from_home(
+            &codex_plus_core::relay_config::default_codex_home_dir(),
+        ),
+    }
 }
 
 fn redacted_settings_report(settings: &BackendSettings) -> Value {

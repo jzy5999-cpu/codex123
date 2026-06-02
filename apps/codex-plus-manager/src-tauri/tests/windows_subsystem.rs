@@ -113,7 +113,7 @@ fn macos_packager_hides_silent_launcher_but_not_manager() {
 }
 
 #[test]
-fn github_release_workflow_builds_macos_arm64_and_windows_x64_assets() {
+fn github_release_workflow_builds_macos_arm64_only_by_default() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let workflow = manifest_dir
         .parent()
@@ -129,11 +129,11 @@ fn github_release_workflow_builds_macos_arm64_and_windows_x64_assets() {
     assert!(workflow.contains("aarch64-apple-darwin"));
     assert!(workflow.contains("package-dmg.sh \"$VERSION\" arm64"));
     assert!(workflow.contains("target/aarch64-apple-darwin/release"));
-    assert!(workflow.contains("windows-setup:"));
-    assert!(workflow.contains("windows-latest"));
-    assert!(workflow.contains("x86_64-pc-windows-msvc"));
-    assert!(workflow.contains("makensis /DVERSION=$version codex123.nsi"));
-    assert!(workflow.contains("dist/windows/codex123-*-windows-x64-setup.exe"));
+    assert!(!workflow.contains("windows-setup:"));
+    assert!(!workflow.contains("windows-latest"));
+    assert!(!workflow.contains("x86_64-pc-windows-msvc"));
+    assert!(!workflow.contains("makensis /DVERSION=$version codex123.nsi"));
+    assert!(!workflow.contains("dist/windows/codex123-*-windows-x64-setup.exe"));
 }
 
 #[test]
@@ -150,6 +150,17 @@ fn github_release_workflow_uploads_static_latest_json() {
     assert!(workflow.contains("latest-json:"));
     assert!(workflow.contains("latest.json"));
     assert!(workflow.contains("gh release upload \"$TAG\" latest.json --clobber"));
+}
+
+#[test]
+fn manager_grants_dialog_capability_for_file_pickers() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let capability = manifest_dir.join("capabilities/default.json");
+    let capability = std::fs::read_to_string(&capability).expect("read default capability");
+
+    assert!(capability.contains("\"windows\": [\"main\"]"));
+    assert!(capability.contains("\"core:default\""));
+    assert!(capability.contains("\"dialog:default\""));
 }
 
 #[test]

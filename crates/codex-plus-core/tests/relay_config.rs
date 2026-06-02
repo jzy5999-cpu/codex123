@@ -7,9 +7,10 @@ use codex_plus_core::relay_config::{
     clear_relay_config_to_home_with_auth, delete_context_entry_from_common_config,
     extract_common_config_from_config, filter_common_config_for_selection,
     list_context_entries_from_common_config, normalize_relay_profile_for_storage,
-    relay_config_status_from_home, sanitize_common_config_contents,
-    set_codex_goals_feature_in_home, strip_common_config_from_config,
-    sync_live_config_context_entries, upsert_context_entry_in_common_config,
+    relay_config_status_from_home, remote_relay_diagnostics_from_home,
+    sanitize_common_config_contents, set_codex_goals_feature_in_home,
+    strip_common_config_from_config, sync_live_config_context_entries,
+    upsert_context_entry_in_common_config,
 };
 use codex_plus_core::settings::{RelayContextSelection, RelayMode, RelayProfile, RelayProtocol};
 
@@ -104,7 +105,7 @@ name = "custom"
 wire_api = "responses"
 requires_openai_auth = true
 base_url = "http://192.168.188.245:3001/v1"
-experimental_bearer_token = "sk-test-redacted"
+experimental_bearer_token = "test-redacted-token"
 "#,
     )
     .unwrap();
@@ -114,6 +115,72 @@ experimental_bearer_token = "sk-test-redacted"
     assert!(status.configured);
     assert!(status.requires_openai_auth);
     assert!(status.has_bearer_token);
+}
+
+#[test]
+fn remote_relay_diagnostics_ready_when_chatgpt_auth_and_provider_are_valid() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","OPENAI_API_KEY":null,"tokens":{"access_token":"access-token"}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        temp.path().join("config.toml"),
+        r#"model_provider = "custom"
+
+[model_providers.custom]
+name = "custom"
+base_url = "https://relay.example.test/v1"
+wire_api = "responses"
+experimental_bearer_token = "test-redacted-token"
+requires_openai_auth = true
+"#,
+    )
+    .unwrap();
+
+    let diagnostics = remote_relay_diagnostics_from_home(temp.path());
+
+    assert!(diagnostics.ready);
+    assert!(diagnostics.authenticated);
+    assert!(diagnostics.auth_mode_chatgpt);
+    assert!(diagnostics.auth_api_key_empty);
+    assert_eq!(diagnostics.active_provider.as_deref(), Some("custom"));
+    assert!(diagnostics.issues.is_empty());
+}
+
+#[test]
+fn remote_relay_diagnostics_rejects_auth_json_api_key() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(
+        temp.path().join("auth.json"),
+        r#"{"auth_mode":"chatgpt","OPENAI_API_KEY":"test-redacted-token","tokens":{"access_token":"access-token"}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        temp.path().join("config.toml"),
+        r#"model_provider = "custom"
+
+[model_providers.custom]
+name = "custom"
+base_url = "https://relay.example.test/v1"
+wire_api = "responses"
+experimental_bearer_token = "test-redacted-token"
+requires_openai_auth = true
+"#,
+    )
+    .unwrap();
+
+    let diagnostics = remote_relay_diagnostics_from_home(temp.path());
+
+    assert!(!diagnostics.ready);
+    assert!(!diagnostics.auth_api_key_empty);
+    assert!(
+        diagnostics
+            .issues
+            .iter()
+            .any(|issue| issue.contains("OPENAI_API_KEY"))
+    );
 }
 
 #[test]

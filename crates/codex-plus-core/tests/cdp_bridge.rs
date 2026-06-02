@@ -48,6 +48,18 @@ fn injection_script_prefixes_helper_url_and_version() {
 }
 
 #[test]
+fn injection_script_groups_secondary_session_actions_in_more_menu() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("codex-session-more-button"));
+    assert!(script.contains("codex-session-more-menu"));
+    assert!(script.contains("function closeSessionMoreMenus"));
+    assert!(script.contains("function createSessionMoreMenuItem"));
+    assert!(script.contains("更多操作"));
+    assert!(script.contains("moreMenu.__codexSessionMoreRow = row"));
+}
+
+#[test]
 fn injection_script_times_out_backend_bridge_calls_and_falls_back_to_helper() {
     let script = assets::injection_script(57321);
 

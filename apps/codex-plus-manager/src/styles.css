@@ -1388,6 +1388,50 @@ body {
   color: #fbbf24;
 }
 
+.diagnostic-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.diagnostic-check {
+  display: flex;
+  min-height: 38px;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+  padding: 8px 10px;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+
+.diagnostic-check.ok svg {
+  color: #34d399;
+}
+
+.diagnostic-check.failed svg {
+  color: #fbbf24;
+}
+
+.issue-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.issue-item {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--accent) / 0.35);
+  padding: 8px 10px;
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .health-item strong,
 .feature-item strong,
 .theme-row strong {

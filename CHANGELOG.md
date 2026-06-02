@@ -1,5 +1,19 @@
 # 更新日志
 
+## 0.2.5 - 2026-06-02
+
+- 管理工具新增远控兼容中转诊断卡片，集中检查 ChatGPT 登录态、`auth.json` API Key 清理、provider、`base_url`、`wire_api = "responses"`、`requires_openai_auth = true` 和 `experimental_bearer_token`。
+- 诊断报告新增结构化 `remoteRelay` 字段，并支持导出脱敏 JSON 文件，方便排查手机 ChatGPT 看不到 Codex 的配置前提问题。
+- 关于页更新检查文案区分“本机运行版本”和“线上 Release 版本”，避免本机手动安装开发版时被线上版本状态误导。
+
+## 0.2.4 - 2026-06-02
+
+- 从 CodexPlusPlus 最新上游选择性合入管理工具文件选择器权限修复，避免 Tauri dialog 插件缺少 capability 时文件/目录选择器打不开。
+- 选择性合入 launcher 旧实例恢复与已有 Codex 拉起逻辑，重复启动时会尝试拉起/激活 Codex，并记录诊断日志。
+- 增强 Chat Completions 本地协议代理：支持 `/v1/v1` 与 `/codex/v1` 代理路径，支持 Chat Completions 透传入口，并把上游非 2xx 响应归一化为 Responses API 错误结构。
+- 会话行的导出与移动操作改为“更多操作”菜单，减少按钮拥挤并修复 hover 菜单交互。
+- 明确后续默认只更新 macOS 版本；没有明确要求时不更新 Windows 安装包或 Windows Release 资产。
+
 ## 0.2.3 - 2026-06-02
 
 - 修复远控兼容中转切换时可能使用供应商中保存的旧 `auth.json`，导致重新登录后的官方 ChatGPT 账号被旧账号覆盖、手机端看不到 Codex 的问题。

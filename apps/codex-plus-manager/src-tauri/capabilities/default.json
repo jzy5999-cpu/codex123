@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for the codex123 Manager main window. Grants the dialog plugin default permission set so file and folder pickers can open from settings.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default"
+  ]
+}
