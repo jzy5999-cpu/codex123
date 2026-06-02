@@ -14,6 +14,47 @@
 
 codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动器和管理工具。项目目标是更好地使用 Codex：保留官方 ChatGPT 登录态，尽量降低中转配置对远程控制能力的破坏，同时继续使用外部 launcher 和 Chromium DevTools Protocol 注入增强脚本，不直接修改 Codex App 原始安装文件。
 
+> 一句话：如果你在 macOS 上使用 Codex，希望模型请求走中转 API，同时尽量保留手机 ChatGPT 远程控制 Codex 的前提，`codex123` 就是为这个场景做的。
+
+## 下载
+
+当前主要发布 macOS Apple Silicon 版本：
+
+[下载最新版 macOS DMG](https://github.com/jzy5999-cpu/codex123/releases/latest)
+
+安装后会得到两个入口：
+
+- `codex123`：静默启动 Codex，并通过 CDP 注入增强脚本。
+- `codex123 管理工具`：配置供应商、中转、增强功能、诊断和更新。
+
+## 适合谁
+
+- 你在 Mac 上使用 Codex，并且希望通过中转 API / 第三方兼容 API 调用模型。
+- 你希望保留官方 ChatGPT 登录态，不想把 Codex 彻底切成纯 API Key 模式。
+- 你需要 DeepSeek 或 Chat Completions 上游兼容。
+- 你希望通过外部 launcher + CDP 注入增强 Codex，而不是修改 Codex 原始安装文件或 `app.asar`。
+
+## 亮点
+
+- **远控兼容中转模式**：中转 Key 写入 provider 配置，不写入 `auth.json` 的 `OPENAI_API_KEY`。
+- **远控前提诊断**：管理工具检查 ChatGPT 登录态、`auth_mode`、provider、`base_url`、`wire_api`、`requires_openai_auth` 和 bearer token。
+- **DeepSeek / Chat Completions 兼容**：本地代理把 Codex Responses 请求转换为 Chat Completions，再转换回 Responses 形态。
+- **外部增强注入**：继续使用 launcher + Chromium DevTools Protocol，不直接修改 Codex App。
+- **macOS 可安装 App**：提供 Apple Silicon DMG，包含静默入口和管理工具入口。
+
+## 文档
+
+- [FAQ](docs/FAQ.md)：远控兼容中转、DeepSeek、macOS、Windows 边界等常见问题。
+- [推广文案](docs/PROMOTION.md)：可直接复制到 V2EX、即刻、X、知乎等平台的介绍文字。
+- [曝光清单](docs/OUTREACH.md)：GitHub topics、社区发布和内容重点。
+
+## 当前限制
+
+- 目前只重点维护 macOS Apple Silicon。
+- Windows 版仅作为开发构建和 CI 产物保留，未在真实 Windows 设备上验证。
+- 手机 ChatGPT 是否能看到并远程控制 Codex，最终取决于 OpenAI 官方账号权限和功能状态。
+- 中转站需要兼容 `/v1/responses`，或通过本地代理兼容 Chat Completions。
+
 本项目致敬并基于 [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。CodexPlusPlus 提供了外部 launcher、管理工具、CDP 注入、安装包结构等核心基础；`codex123` 在此基础上加入远控兼容中转模式，并把第一版交付重点放在 macOS Apple Silicon。项目也参考了其他开源工具的实践，尤其借鉴了 [ccswitch](https://github.com/farion1231/cc-switch) 在 Codex 接入 DeepSeek / Chat Completions 上游时的本地路由与协议转换思路，优先服务个人开发工作流。
 
 `codex123` 不是 OpenAI 官方项目，也不与 OpenAI 存在隶属、赞助或背书关系。Codex、ChatGPT 及相关名称归其各自权利方所有。

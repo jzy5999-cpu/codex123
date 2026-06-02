@@ -12,6 +12,7 @@ body:
     attributes:
       label: 接入模式
       options:
+        - 远控兼容中转
         - 纯 API
         - 官方登录
         - 官方登录 + 混入 API Key
@@ -40,6 +41,19 @@ body:
       label: 相关 config.toml / auth.json 片段
       description: 请删除 API Key、Token、账号等敏感信息。
       render: toml
+  - type: checkboxes
+    id: remote_relay_checks
+    attributes:
+      label: 远控兼容中转诊断
+      description: 如果你使用远控兼容中转，请根据管理工具诊断卡片勾选。
+      options:
+        - label: 官方 ChatGPT 登录态已检测到。
+        - label: auth.json 中 auth_mode 是 chatgpt。
+        - label: auth.json 中 OPENAI_API_KEY 为空或 null。
+        - label: 当前 provider 存在 base_url。
+        - label: 当前 provider 使用 wire_api = "responses"。
+        - label: 当前 provider 设置 requires_openai_auth = true。
+        - label: 当前 provider 设置 experimental_bearer_token。
   - type: textarea
     id: behavior
     attributes:
@@ -60,4 +74,3 @@ body:
       options:
         - label: 我已经脱敏了 API Key、Token、账号等敏感信息。
           required: true
-

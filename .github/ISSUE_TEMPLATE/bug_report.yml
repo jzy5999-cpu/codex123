@@ -66,8 +66,9 @@ body:
     attributes:
       label: 系统
       options:
-        - Windows
-        - macOS
+        - macOS Apple Silicon
+        - macOS Intel
+        - Windows 开发构建
         - Linux
         - 其他
     validations:

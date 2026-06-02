@@ -14,6 +14,47 @@
 
 codex123 is an independent, unofficial, development-experience-first external launcher and manager for the Codex App. Its goal is to make Codex easier to use: preserve the official ChatGPT login state, reduce the risk of relay configuration breaking remote-control prerequisites, and keep the external launcher plus Chromium DevTools Protocol injection path without modifying the original Codex App installation files.
 
+> In one sentence: if you use Codex on macOS, want model requests to go through a relay API, and still want to preserve the prerequisites for ChatGPT mobile remote control, codex123 is built for that workflow.
+
+## Download
+
+The primary release target is macOS Apple Silicon:
+
+[Download the latest macOS DMG](https://github.com/jzy5999-cpu/codex123/releases/latest)
+
+After installation, you get two entry points:
+
+- `codex123`: silent launcher for starting Codex and injecting enhancements through CDP.
+- `codex123 管理工具`: manager UI for providers, relay setup, enhancements, diagnostics, and updates.
+
+## Who It Is For
+
+- You use Codex on a Mac and want model requests to go through a relay API or third-party compatible API.
+- You want to preserve the official ChatGPT login state instead of turning Codex into a pure API-key mode.
+- You need DeepSeek or Chat Completions upstream compatibility.
+- You want external launcher + CDP injection enhancements without modifying the original Codex App files or `app.asar`.
+
+## Highlights
+
+- **Remote-control-compatible relay mode**: stores the relay key in provider config, not in `auth.json` as `OPENAI_API_KEY`.
+- **Remote-control prerequisite diagnostics**: checks ChatGPT auth state, `auth_mode`, provider config, `base_url`, `wire_api`, `requires_openai_auth`, and bearer token.
+- **DeepSeek / Chat Completions compatibility**: local proxy converts Codex Responses requests to Chat Completions and converts upstream responses back.
+- **External enhancement injection**: launcher + Chromium DevTools Protocol, without patching the Codex App installation.
+- **Installable macOS app**: Apple Silicon DMG with a silent launcher and a manager entry point.
+
+## Docs
+
+- [FAQ](docs/FAQ.md): common questions about remote-control-compatible relay mode, DeepSeek, macOS, and Windows scope.
+- [Promotion copy](docs/PROMOTION.md): ready-to-post Chinese copy for V2EX, Jike, X, Zhihu, and other communities.
+- [Outreach checklist](docs/OUTREACH.md): GitHub topics, community channels, and messaging priorities.
+
+## Current Limits
+
+- macOS Apple Silicon is the only actively maintained release target.
+- Windows is kept only as a development build and CI artifact, not verified on a real Windows machine.
+- Whether ChatGPT mobile can see and remotely control Codex is ultimately controlled by OpenAI account eligibility and feature availability.
+- Relay providers must support `/v1/responses`, or be compatible through the local Chat Completions proxy.
+
 This project is a tribute to and derivative of [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). CodexPlusPlus provided the external launcher, manager, CDP injection approach, installer structure, and much of the foundation that made this project possible. codex123 adds a remote-control-compatible relay mode and focuses the first deliverable on macOS Apple Silicon. It also learns from other open-source tooling practices, especially [ccswitch](https://github.com/farion1231/cc-switch)'s local routing and protocol conversion approach for connecting Codex to DeepSeek / Chat Completions upstreams, and prioritizes personal development workflows.
 
 codex123 is not an official OpenAI project and is not affiliated with, sponsored by, or endorsed by OpenAI. Codex, ChatGPT, and related names belong to their respective owners.

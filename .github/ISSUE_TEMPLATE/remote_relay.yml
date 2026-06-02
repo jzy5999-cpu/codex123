@@ -1,0 +1,101 @@
+name: 远控兼容中转问题
+description: 手机 ChatGPT 看不到 Codex、远控中转诊断失败、官方登录态被破坏等问题。
+title: "[RemoteRelay]: "
+labels: ["type: config", "area: remote-relay", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先在管理工具的“供应商配置”页查看“远控兼容中转诊断”。不要提交 API Key、Token、账号邮箱、完整 Base URL 私密路径。
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: 主要现象
+      options:
+        - 手机 ChatGPT 看不到 Codex
+        - 手机端能看到但无法连接
+        - 诊断卡片显示未就绪
+        - 切换供应商后 auth.json 被改坏
+        - 中转请求失败
+        - 其他
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 诊断卡片结果
+      options:
+        - label: 官方 ChatGPT 登录态通过
+        - label: auth_mode = chatgpt 通过
+        - label: auth.json 未保存 API Key 通过
+        - label: 当前 provider 存在
+        - label: base_url 已配置
+        - label: wire_api = responses 通过
+        - label: requires_openai_auth = true 通过
+        - label: experimental_bearer_token 已配置
+  - type: textarea
+    id: diagnosis
+    attributes:
+      label: 诊断报告 remoteRelay 片段
+      description: 可从“关于 -> 诊断报告”复制 remoteRelay 片段。请确认没有 token、Key、邮箱等敏感信息。
+      render: json
+  - type: input
+    id: provider
+    attributes:
+      label: 中转站 / 上游类型
+      placeholder: 例如 DeepSeek、OpenAI-compatible relay、私有中转、其他
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: 上游协议
+      options:
+        - Responses API
+        - Chat Completions
+        - 不确定
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 使用原版 Codex 重新登录 ChatGPT
+        2. 打开 codex123 管理工具
+        3. 切换到某个远控兼容中转供应商
+        4. 从 codex123 启动
+        5. 手机 ChatGPT 看不到 Codex
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 错误信息
+      description: 请脱敏后粘贴。
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: codex123 版本
+      placeholder: 例如 0.2.5
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 系统
+      options:
+        - macOS Apple Silicon
+        - macOS Intel
+        - Windows 开发构建
+        - 其他
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已经脱敏了 API Key、Token、账号邮箱和私密 Base URL。
+          required: true
+        - label: 我理解手机端 Codex 入口最终取决于 OpenAI 官方账号权限和功能状态。
+          required: true
