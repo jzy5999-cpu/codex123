@@ -24,6 +24,7 @@ import {
   Copy,
   Download,
   Edit3,
+  FolderOpen,
   GripVertical,
   Info,
   ExternalLink,
@@ -34,6 +35,7 @@ import {
   FileCode2,
   Moon,
   Network,
+  PawPrint,
   Power,
   PowerOff,
   Plus,
@@ -326,6 +328,50 @@ type ScriptMarketResult = CommandResult<{
   user_scripts: UserScriptInventory;
 }>;
 
+type PetdexPet = {
+  slug: string;
+  displayName: string;
+  description: string;
+  author: string;
+  petJsonUrl: string;
+  spritesheetUrl: string;
+  homepage: string;
+  tags: string[];
+  installed: boolean;
+  installedPath: string | null;
+  updateAvailable: boolean;
+  heatScore: number;
+  heatLabel: string;
+  heatReason: string[];
+};
+
+type InstalledPet = {
+  slug: string;
+  displayName: string;
+  path: string;
+  spritesheetFile: string | null;
+  source: string;
+  petJsonUrl: string;
+  spritesheetUrl: string;
+  installedAtMs: number | null;
+};
+
+type PetdexManifest = {
+  manifestUrl: string;
+  petsDir: string;
+  pets: PetdexPet[];
+  installed: InstalledPet[];
+};
+
+type PetdexResult = CommandResult<{
+  manifest: PetdexManifest;
+}>;
+
+type InstalledPetsResult = CommandResult<{
+  petsDir: string;
+  installed: InstalledPet[];
+}>;
+
 function syncMarketInstalledState(current: ScriptMarketResult | null, userScripts: UserScriptInventory): ScriptMarketResult | null {
   if (!current) return current;
   const installed = new Map(
@@ -355,7 +401,7 @@ type StartupResult = CommandResult<{
   showUpdate: boolean;
 }>;
 
-type Route = "overview" | "relay" | "context" | "enhance" | "userScripts" | "providerSync" | "maintenance" | "about" | "settings";
+type Route = "overview" | "relay" | "context" | "enhance" | "userScripts" | "pets" | "providerSync" | "maintenance" | "about" | "settings";
 type Theme = "dark" | "light";
 
 const routes: Array<{ id: Route; label: string; icon: LucideIcon }> = [
@@ -364,6 +410,7 @@ const routes: Array<{ id: Route; label: string; icon: LucideIcon }> = [
   { id: "context", label: "工具与插件", icon: Network },
   { id: "enhance", label: "页面增强", icon: Hammer },
   { id: "userScripts", label: "脚本市场", icon: FileCode2 },
+  { id: "pets", label: "宠物导入", icon: PawPrint },
   { id: "providerSync", label: "历史会话修复", icon: Link2 },
   { id: "maintenance", label: "安装维护", icon: Wrench },
   { id: "about", label: "关于", icon: Info },
@@ -428,6 +475,8 @@ export function App() {
   const [watcher, setWatcher] = useState<WatcherResult | null>(null);
   const [update, setUpdate] = useState<UpdateResult | null>(null);
   const [scriptMarket, setScriptMarket] = useState<ScriptMarketResult | null>(null);
+  const [petdex, setPetdex] = useState<PetdexResult | null>(null);
+  const [installedPets, setInstalledPets] = useState<InstalledPetsResult | null>(null);
   const [launchForm, setLaunchForm] = useState({
     appPath: "",
     debugPort: "9229",
@@ -481,6 +530,97 @@ export function App() {
       setScriptMarket(result);
       setSettings((current) => (current ? { ...current, user_scripts: result.user_scripts } : current));
       if (!silent || !isSuccessStatus(result.status)) showResultNotice("脚本市场", result, { silentSuccess: true });
+    }
+  };
+
+  const refreshPetdex = async (silent = false) => {
+    const result = await run(() => call<PetdexResult>("refresh_petdex"));
+    if (result) {
+      setPetdex(result);
+      setInstalledPets({
+        status: result.status,
+        message: result.message,
+        petsDir: result.manifest.petsDir,
+        installed: result.manifest.installed,
+      });
+      if (!silent || !isSuccessStatus(result.status)) showResultNotice("宠物导入", result, { silentSuccess: true });
+    }
+  };
+
+  const refreshInstalledPets = async (silent = false) => {
+    const result = await run(() => call<InstalledPetsResult>("list_installed_pets"));
+    if (result) {
+      setInstalledPets(result);
+      setPetdex((current) =>
+        current
+          ? {
+              ...current,
+              manifest: {
+                ...current.manifest,
+                installed: result.installed,
+                pets: current.manifest.pets.map((pet) => {
+                  const installed = result.installed.find((item) => item.slug === pet.slug);
+                  const hasInstallMetadata = Boolean(installed?.petJsonUrl || installed?.spritesheetUrl);
+                  return {
+                    ...pet,
+                    installed: Boolean(installed),
+                    installedPath: installed?.path ?? null,
+                    updateAvailable: installed && hasInstallMetadata
+                      ? installed?.petJsonUrl !== pet.petJsonUrl || installed?.spritesheetUrl !== pet.spritesheetUrl
+                      : pet.updateAvailable,
+                  };
+                }),
+              },
+            }
+          : current,
+      );
+      if (!silent || !isSuccessStatus(result.status)) showResultNotice("本地宠物", result, { silentSuccess: true });
+    }
+  };
+
+  const installPetdexPet = async (pet: PetdexPet) => {
+    const overwrite = Boolean(pet.installed);
+    if (overwrite && !window.confirm(`覆盖已安装宠物“${pet.displayName || pet.slug}”？`)) return;
+    const result = await run(() =>
+      call<PetdexResult>("install_petdex_pet", {
+        request: {
+          slug: pet.slug,
+          displayName: pet.displayName,
+          petJsonUrl: pet.petJsonUrl,
+          spritesheetUrl: pet.spritesheetUrl,
+          overwrite,
+        },
+      }),
+    );
+    if (result) {
+      setPetdex(result);
+      setInstalledPets({
+        status: result.status,
+        message: result.message,
+        petsDir: result.manifest.petsDir,
+        installed: result.manifest.installed,
+      });
+      showResultNotice("宠物导入", result);
+    }
+  };
+
+  const openPetsDirectory = async () => {
+    const result = await run(() => call<CommandResult<Record<string, unknown>>>("open_pets_directory"));
+    if (result) showResultNotice("宠物目录", result, { silentSuccess: true });
+  };
+
+  const deleteInstalledPet = async (pet: InstalledPet) => {
+    if (!window.confirm(`删除本地宠物“${pet.displayName || pet.slug}”？`)) return;
+    const result = await run(() => call<PetdexResult>("delete_installed_pet", { slug: pet.slug }));
+    if (result) {
+      setPetdex(result);
+      setInstalledPets({
+        status: result.status,
+        message: result.message,
+        petsDir: result.manifest.petsDir,
+        installed: result.manifest.installed,
+      });
+      showResultNotice("宠物删除", result);
     }
   };
 
@@ -605,6 +745,10 @@ export function App() {
     if (next === "userScripts") {
       await refreshSettings(true);
       await refreshScriptMarket(true);
+    }
+    if (next === "pets") {
+      await refreshInstalledPets(true);
+      await refreshPetdex(true);
     }
     if (next === "providerSync") await refreshSettings(true);
     if (next === "about") {
@@ -1210,6 +1354,11 @@ export function App() {
       installMarketScript,
       setUserScriptEnabled,
       deleteUserScript,
+      refreshPetdex,
+      refreshInstalledPets,
+      installPetdexPet,
+      deleteInstalledPet,
+      openPetsDirectory,
       openExternalUrl,
       applyRelayInjection,
       applyPureApiInjection,
@@ -1345,6 +1494,7 @@ export function App() {
             <EnhanceScreen form={settingsForm} onFormChange={setSettingsForm} actions={actions} />
           ) : null}
           {route === "userScripts" ? <UserScriptsScreen settings={settings} market={scriptMarket} actions={actions} /> : null}
+          {route === "pets" ? <PetsScreen petdex={petdex} installedPets={installedPets} actions={actions} /> : null}
           {route === "providerSync" ? (
             <ProviderSyncScreen settings={settings} form={settingsForm} onFormChange={setSettingsForm} actions={actions} />
           ) : null}
@@ -1405,6 +1555,11 @@ type Actions = {
   installMarketScript: (id: string) => Promise<void>;
   setUserScriptEnabled: (key: string, enabled: boolean) => Promise<void>;
   deleteUserScript: (key: string) => Promise<void>;
+  refreshPetdex: () => Promise<void>;
+  refreshInstalledPets: () => Promise<void>;
+  installPetdexPet: (pet: PetdexPet) => Promise<void>;
+  deleteInstalledPet: (pet: InstalledPet) => Promise<void>;
+  openPetsDirectory: () => Promise<void>;
   openExternalUrl: (url: string) => Promise<void>;
   applyRelayInjection: () => Promise<boolean>;
   applyPureApiInjection: () => Promise<boolean>;
@@ -1816,6 +1971,180 @@ function UserScriptsScreen({ settings, market, actions }: { settings: SettingsRe
         </CardContent>
       </Panel>
     </>
+  );
+}
+
+function PetsScreen({
+  petdex,
+  installedPets,
+  actions,
+}: {
+  petdex: PetdexResult | null;
+  installedPets: InstalledPetsResult | null;
+  actions: Actions;
+}) {
+  const [query, setQuery] = useState("");
+  const pets = petdex?.manifest.pets ?? [];
+  const installed = installedPets?.installed ?? petdex?.manifest.installed ?? [];
+  const petsDir = installedPets?.petsDir ?? petdex?.manifest.petsDir ?? "~/.codex/pets";
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredPets = normalizedQuery
+    ? pets.filter((pet) =>
+        [
+          pet.slug,
+          pet.displayName,
+          pet.description,
+          pet.author,
+          ...pet.tags,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      )
+    : pets;
+  const visiblePets = filteredPets.slice(0, 80);
+  const installedCount = pets.filter((pet) => pet.installed).length;
+  const updateCount = pets.filter((pet) => pet.updateAvailable).length;
+
+  return (
+    <>
+      <Panel>
+        <CardHead title="Petdex 宠物导入" detail="从 Petdex 安装 Codex-compatible pet packages 到用户目录" />
+        <CardContent>
+          <div className="metric-list">
+            <Metric label="市场状态" value={petdex?.message ?? "尚未刷新"} />
+            <Metric label="远程宠物" value={`${pets.length} 个`} />
+            <Metric label="市场已安装" value={`${installedCount} 个`} />
+            <Metric label="可更新" value={`${updateCount} 个`} />
+            <Metric label="本地目录" value={petsDir} />
+          </div>
+          <Toolbar>
+            <Button onClick={() => void actions.refreshPetdex()}>
+              <RefreshCw className="h-4 w-4" />
+              刷新 Petdex
+            </Button>
+            <Button onClick={() => void actions.openPetsDirectory()} variant="secondary">
+              <FolderOpen className="h-4 w-4" />
+              打开目录
+            </Button>
+            <Button onClick={() => void actions.refreshInstalledPets()} variant="secondary">
+              <RefreshCw className="h-4 w-4" />
+              刷新本地
+            </Button>
+          </Toolbar>
+        </CardContent>
+      </Panel>
+
+      <Panel>
+        <CardHead title="宠物市场" detail="当前按综合热度排序。安装后到 Codex Settings -> Appearance -> Pets 中选择" />
+        <CardContent>
+          <div className="form-grid">
+            <label>
+              <span>搜索</span>
+              <Input
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                placeholder="按名称、slug、作者或标签搜索"
+                value={query}
+              />
+            </label>
+          </div>
+          <div className="hint-line">
+            <Info className="h-4 w-4" />
+            <span>综合热度由已安装、可更新、作者、描述、主页和标签完整度计算，不代表 Petdex 官方下载量。</span>
+          </div>
+          {filteredPets.length ? (
+            <>
+              {filteredPets.length > visiblePets.length ? (
+                <div className="hint-line">
+                  <Info className="h-4 w-4" />
+                  <span>当前显示前 {visiblePets.length} 个结果，请继续搜索缩小范围。</span>
+                </div>
+              ) : null}
+              <div className="script-market-grid">
+                {visiblePets.map((pet) => (
+                  <PetdexCard key={pet.slug} pet={pet} actions={actions} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="empty">
+              {petdex?.status === "failed" ? petdex.message : "点击刷新 Petdex 加载宠物列表。"}
+            </div>
+          )}
+        </CardContent>
+      </Panel>
+
+      <Panel>
+        <CardHead title="本地已安装" detail="只读取 ~/.codex/pets 下包含 pet.json 的目录" />
+        <CardContent>
+          <div className="table">
+            {installed.length ? (
+              installed.map((pet) => (
+                <div className="table-row" key={pet.slug}>
+                  <div>
+                    <strong>{pet.displayName || pet.slug}</strong>
+                    <span>{pet.source ? `${pet.source} · ` : ""}{pet.path}</span>
+                  </div>
+                  <div className="row-actions">
+                    <UiBadge variant="secondary">{pet.spritesheetFile ?? "未检测到 spritesheet"}</UiBadge>
+                    <Button onClick={() => void actions.deleteInstalledPet(pet)} size="sm" variant="outline">
+                      <Trash2 className="h-4 w-4" />
+                      删除
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty">未发现本地宠物。</div>
+            )}
+          </div>
+        </CardContent>
+      </Panel>
+    </>
+  );
+}
+
+function PetdexCard({ pet, actions }: { pet: PetdexPet; actions: Actions }) {
+  const status = pet.updateAvailable ? "可更新" : pet.installed ? "已安装" : "未安装";
+  return (
+    <div className="script-market-card">
+      <div className="pet-preview">
+        <img alt={pet.displayName || pet.slug} loading="lazy" src={pet.spritesheetUrl} />
+      </div>
+      <div className="script-market-title">
+        <div>
+          <strong>{pet.displayName || pet.slug}</strong>
+          <span>{pet.author || pet.slug}</span>
+        </div>
+        <div className="petdex-badges">
+          <UiBadge variant="default">{pet.heatLabel}</UiBadge>
+          <UiBadge variant={pet.updateAvailable ? "default" : pet.installed ? "secondary" : "outline"}>{status}</UiBadge>
+        </div>
+      </div>
+      <p className="script-market-description">{pet.description || "暂无描述。"}</p>
+      <div className="petdex-heat-line">
+        <span>综合热度 {pet.heatScore}</span>
+        <span>{pet.heatReason.length ? pet.heatReason.join(" + ") : "基础元数据较少"}</span>
+      </div>
+      <div className="script-market-tags">
+        <span className="script-market-tag">{pet.slug}</span>
+        {pet.tags.slice(0, 6).map((tag) => (
+          <span className="script-market-tag" key={tag}>{tag}</span>
+        ))}
+      </div>
+      <div className="script-market-actions">
+        <Button onClick={() => void actions.installPetdexPet(pet)} size="sm">
+          <Download className="h-4 w-4" />
+          {pet.updateAvailable ? "更新" : pet.installed ? "覆盖安装" : "安装"}
+        </Button>
+        {pet.homepage ? (
+          <Button onClick={() => void actions.openExternalUrl(pet.homepage)} size="sm" variant="secondary">
+            <ExternalLink className="h-4 w-4" />
+            主页
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -3268,6 +3597,7 @@ function routeSubtitle(route: Route) {
     context: "独立管理 MCP、Skills、Plugins",
     enhance: "会话删除、导出、项目移动和脚本能力",
     userScripts: "内置和用户自定义脚本清单",
+    pets: "从 Petdex 导入 Codex 宠物包",
     providerSync: "切换模式后让旧对话重新可见",
     maintenance: "入口安装、修复、Watcher 与手动启动",
     about: "版本信息、项目链接、GitHub Release 更新、日志与诊断",

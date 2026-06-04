@@ -39,6 +39,7 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 - **远控兼容中转模式**：中转 Key 写入 provider 配置，不写入 `auth.json` 的 `OPENAI_API_KEY`。
 - **远控前提诊断**：管理工具检查 ChatGPT 登录态、`auth_mode`、provider、`base_url`、`wire_api`、`requires_openai_auth` 和 bearer token。
 - **DeepSeek / Chat Completions 兼容**：本地代理把 Codex Responses 请求转换为 Chat Completions，再转换回 Responses 形态。
+- **Petdex 宠物导入**：从 Petdex 拉取 Codex-compatible pet packages，一键安装到 `~/.codex/pets`。
 - **外部增强注入**：继续使用 launcher + Chromium DevTools Protocol，不直接修改 Codex App。
 - **macOS 可安装 App**：提供 Apple Silicon DMG，包含静默入口和管理工具入口。
 
@@ -56,6 +57,8 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 - 中转站需要兼容 `/v1/responses`，或通过本地代理兼容 Chat Completions。
 
 本项目致敬并基于 [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)。CodexPlusPlus 提供了外部 launcher、管理工具、CDP 注入、安装包结构等核心基础；`codex123` 在此基础上加入远控兼容中转模式，并把第一版交付重点放在 macOS Apple Silicon。项目也参考了其他开源工具的实践，尤其借鉴了 [ccswitch](https://github.com/farion1231/cc-switch) 在 Codex 接入 DeepSeek / Chat Completions 上游时的本地路由与协议转换思路，优先服务个人开发工作流。
+
+`codex123` 主要面向作者个人使用，也以开源方式供有相同需求的同好学习、参考和自担风险使用。本项目不用于破坏、攻击、绕过账号权限或规避平台安全机制；它只在本机配置、启动器和 CDP 注入层做外部增强，目标是改善开发体验并尽量保持官方 ChatGPT 登录态不被中转配置破坏。
 
 `codex123` 不是 OpenAI 官方项目，也不与 OpenAI 存在隶属、赞助或背书关系。Codex、ChatGPT 及相关名称归其各自权利方所有。
 
@@ -121,6 +124,28 @@ Codex 当前主要按 OpenAI Responses API 形态请求模型，而 DeepSeek 官
 
 当前优化包括 DeepSeek reasoning effort 映射、`reasoning_content` 流式返回转换、assistant tool-call 历史的 `reasoning_content` 兜底，以及基础工具调用历史转换。该能力提高 DeepSeek 长会话和工具调用稳定性，但不保证所有 DeepSeek 中转站 100% 可用；中转站仍需要兼容 OpenAI Chat Completions、流式输出和工具调用。
 
+## Petdex 宠物导入
+
+`codex123` 管理工具提供 Petdex MVP，用于把 Codex-compatible pet packages 安装到用户数据目录：
+
+```text
+~/.codex/pets/<slug>/
+├── pet.json
+└── spritesheet.webp 或 spritesheet.png
+```
+
+使用方式：
+
+1. 打开 `codex123 管理工具`。
+2. 进入“宠物导入”。
+3. 点击“刷新 Petdex”。
+4. 默认按“综合热度”查看、搜索并安装需要的宠物。
+5. 打开 Codex 后，在 `Settings -> Appearance -> Pets` 中手动选择。
+
+该功能只写入 `~/.codex/pets`，不修改 Codex App 原始安装目录，也不会自动改 Codex 选中宠物的内部状态。安装前会校验 HTTPS、资源域名、slug、JSON、PNG/WEBP、文件大小，并通过临时目录完成原子安装。安装时会写入 `codex123-installed.json` 元数据，用于后续判断是否可更新；本地已安装列表支持删除合法 slug 目录。
+
+宠物市场当前使用 `codex123` 本地“综合热度”排序，便于优先挑选更完整、已安装或可更新的宠物。这个热度分不是 Petdex 官方下载量、点赞量或浏览量，只是本地可解释的推荐顺序。
+
 ## 快速使用
 
 Release 产物为：
@@ -144,10 +169,10 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.5 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.9 arm64
 ```
 
-生成文件位于 `dist/macos/codex123-0.2.5-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+生成文件位于 `dist/macos/codex123-0.2.9-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
 
 Windows 安装包目前只作为开发构建链路保留，不随 macOS 修复版更新。由于开发者使用 Mac 电脑，Windows 版目前只完成代码、打包脚本和 CI 构建链路，尚未确认在真实 Windows 环境中的启动、注入和远控兼容行为。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
 

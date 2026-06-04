@@ -1,5 +1,38 @@
 # 更新日志
 
+## 0.2.9 - 2026-06-04
+
+- Petdex 宠物市场新增“综合热度”排序：基于已安装、可更新、作者、描述、主页和标签完整度计算本地推荐顺序，并在卡片中显示热度标签与原因说明。
+- 选择性合入 CodexPlusPlus 上游插件市场兼容改进：增强插件市场列表解锁、隐藏过滤绕过、插件安装请求修正和诊断日志。
+- 插件市场增强保留 `codex123` 品牌和中性 OpenAI 插件文案，不合入 Codex++ 交流群、赞助、二维码或可见品牌信息。
+- 管理工具保存设置时跳过空配置的官方登录 profile 存储归一化，减少默认中转 profile 的无效解析日志。
+- CDP 注入目标选择会跳过 Codex 宠物 `avatar-overlay` 页面，避免宠物覆盖层抢走主界面增强脚本注入。
+- 本次仍只更新 macOS 版；Windows 构建链路不随本次 macOS 修复同步更新。
+
+## 0.2.8 - 2026-06-04
+
+- 宠物导入页面新增 spritesheet 缩略图懒加载预览，并限制远程列表首屏最多渲染 80 个结果，避免一次性加载大量图片。
+- 宠物安装时写入 `codex123-installed.json` 元数据，记录来源、URL 和安装时间。
+- Petdex 刷新时根据安装元数据检测已安装宠物是否可更新。
+- 本地已安装列表新增删除按钮，只允许删除 `~/.codex/pets/<slug>` 下合法 slug 目录。
+- 宠物卡片增加“可更新”状态，安装按钮会切换为“更新”。
+
+## 0.2.7 - 2026-06-03
+
+- 管理工具新增“宠物导入”页面，第一版支持 Petdex manifest 刷新、搜索、安装和覆盖安装。
+- 新增 Codex 宠物包安装器：下载 `pet.json` 与 `spritesheet` 后写入 `~/.codex/pets/<slug>/`，不修改 Codex App 原始安装目录。
+- 安装前增加安全校验：HTTPS、资源域名允许列表、slug 校验、JSON 校验、PNG/WEBP 校验、大小限制、临时目录写入与原子安装。
+- 支持读取本地已安装宠物，并可从管理工具打开 `~/.codex/pets` 目录。
+- README / README_EN 增加 Petdex MVP 使用方式和边界说明。
+
+## 0.2.6 - 2026-06-03
+
+- 选择性合入 CodexPlusPlus 上游 launcher 稳定性改进：Codex 已启动但 CDP 注入暂未就绪时进入 `running_degraded`，不再立即关闭已启动的 Codex。
+- 注入流程增加更长重试窗口，页面或 CDP 启动较慢时继续等待增强脚本就绪。
+- 已有 Codex 实例路径也会启动 helper 并尝试注入，改善重复启动/重启时增强未恢复的问题。
+- 保留 codex123 的代理环境注入、RemoteRelay 保护和品牌文案；不合入上游交流群图片、Codex++ 可见品牌或 Windows 发布改动。
+- README / README_EN 增加个人使用、开源供同好借鉴和不用于攻击/绕过安全机制的项目边界说明。
+
 ## 0.2.5 - 2026-06-02
 
 - 管理工具新增远控兼容中转诊断卡片，集中检查 ChatGPT 登录态、`auth.json` API Key 清理、provider、`base_url`、`wire_api = "responses"`、`requires_openai_auth = true` 和 `experimental_bearer_token`。

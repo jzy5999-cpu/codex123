@@ -174,7 +174,12 @@ pub fn find_codex_processes() -> Vec<u32> {
     )
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn find_codex_processes() -> Vec<u32> {
+    process_ids_by_exact_name("Codex")
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn find_codex_processes() -> Vec<u32> {
     Vec::new()
 }
@@ -197,7 +202,12 @@ pub fn stop_launcher_processes() {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn stop_launcher_processes() {
+    terminate_macos_process_by_exact_name("codex123");
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn stop_launcher_processes() {}
 
 #[cfg(windows)]
@@ -207,8 +217,43 @@ pub fn stop_codex_processes() {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn stop_codex_processes() {
+    let _ = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg("tell application \"Codex\" to quit")
+        .status();
+    terminate_macos_process_by_exact_name("Codex");
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn stop_codex_processes() {}
+
+#[cfg(target_os = "macos")]
+fn process_ids_by_exact_name(name: &str) -> Vec<u32> {
+    let output = std::process::Command::new("pgrep")
+        .arg("-x")
+        .arg(name)
+        .output();
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn terminate_macos_process_by_exact_name(name: &str) {
+    let _ = std::process::Command::new("pkill")
+        .arg("-x")
+        .arg(name)
+        .status();
+}
 
 #[cfg(windows)]
 fn create_startup_shortcut(launcher_path: &Path, arguments: &str) -> anyhow::Result<()> {

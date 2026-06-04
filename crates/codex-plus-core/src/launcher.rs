@@ -150,6 +150,40 @@ pub trait LaunchHooks: Send + Sync {
     ) -> anyhow::Result<()> {
         self.inject(debug_port, helper_port).await
     }
+    fn injection_retry_attempts(&self) -> u32 {
+        120
+    }
+    async fn wait_before_injection_retry(&self) {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+    async fn ensure_injection(&self, debug_port: u16, helper_port: u16) -> bool {
+        let attempts = self.injection_retry_attempts().max(1);
+        for attempt in 1..=attempts {
+            let result = match self.bridge_context(debug_port).await {
+                Ok(Some(ctx)) => self.inject_bridge(debug_port, helper_port, ctx).await,
+                Ok(None) => self.inject(debug_port, helper_port).await,
+                Err(error) => Err(error),
+            };
+            match result {
+                Ok(()) => return true,
+                Err(error) => {
+                    let _ = crate::diagnostic_log::append_diagnostic_log(
+                        "launcher.ensure_injection_retry_failed",
+                        serde_json::json!({
+                            "debug_port": debug_port,
+                            "helper_port": helper_port,
+                            "attempt": attempt,
+                            "message": error.to_string()
+                        }),
+                    );
+                    if attempt < attempts {
+                        self.wait_before_injection_retry().await;
+                    }
+                }
+            }
+        }
+        false
+    }
     async fn start_bridge_watchdog(
         &self,
         _debug_port: u16,
@@ -199,6 +233,7 @@ where
     let status_store = options.status_store.clone();
     let mut helper_started = false;
     let mut launched = None;
+    let mut keep_launched_on_error = false;
 
     let result: anyhow::Result<LaunchHandle> = async {
         if settings.provider_sync_enabled {
@@ -217,24 +252,39 @@ where
             .launch_codex(&app_dir, debug_port, &settings.codex_extra_args)
             .await?;
         launched = Some(launch.clone());
+        keep_launched_on_error = true;
 
+        let mut injection_degraded = false;
         if settings.enhancements_enabled {
-            match hooks.bridge_context(debug_port).await? {
-                Some(ctx) => hooks.inject_bridge(debug_port, helper_port, ctx).await?,
-                None => hooks.inject(debug_port, helper_port).await?,
+            let injection_ready = hooks.ensure_injection(debug_port, helper_port).await;
+            if injection_ready {
+                keep_launched_on_error = false;
+                hooks.start_bridge_watchdog(debug_port, helper_port).await?;
+            } else {
+                let degraded = launch_status(
+                    "running_degraded",
+                    "Codex 已启动，codex123 增强仍在等待页面就绪。",
+                    debug_port,
+                    helper_port,
+                    &app_dir,
+                );
+                options.status_store.save_latest(&degraded)?;
+                hooks.write_status("running_degraded").await;
+                injection_degraded = true;
             }
-            hooks.start_bridge_watchdog(debug_port, helper_port).await?;
         }
 
-        let status = launch_status(
-            "running",
-            "codex123 launcher ready",
-            debug_port,
-            helper_port,
-            &app_dir,
-        );
-        options.status_store.save_latest(&status)?;
-        hooks.write_status("running").await;
+        if !settings.enhancements_enabled || !injection_degraded {
+            let status = launch_status(
+                "running",
+                "codex123 launcher ready",
+                debug_port,
+                helper_port,
+                &app_dir,
+            );
+            options.status_store.save_latest(&status)?;
+            hooks.write_status("running").await;
+        }
 
         Ok(LaunchHandle {
             debug_port,
@@ -255,7 +305,9 @@ where
                 hooks.shutdown_helper(helper_port).await;
             }
             if let Some(launch) = &launched {
-                hooks.terminate_codex(launch).await;
+                if !keep_launched_on_error {
+                    hooks.terminate_codex(launch).await;
+                }
             }
             let message = error.to_string();
             let failure = launch_status("failed", &message, debug_port, helper_port, &app_dir);

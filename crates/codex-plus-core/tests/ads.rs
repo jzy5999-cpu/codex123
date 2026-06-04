@@ -9,13 +9,7 @@ use serde_json::json;
 
 #[test]
 fn default_ad_urls_match_legacy_helper_sources() {
-    assert_eq!(
-        DEFAULT_AD_LIST_URLS,
-        [
-            "https://raw.githubusercontent.com/BigPizzaV3/Ad-List/main/ads.json",
-            "https://cdn.jsdelivr.net/gh/BigPizzaV3/Ad-List@main/ads.json",
-        ]
-    );
+    assert!(DEFAULT_AD_LIST_URLS.is_empty());
 }
 
 #[test]
@@ -40,10 +34,10 @@ fn normalizes_remote_ads_for_plugin_and_manager_rendering() {
         "version": 1,
         "ads": [
             {
-                "id": "sponsor",
-                "type": "sponsor",
-                "title": "赞助商",
-                "description": "推荐内容",
+                "id": "unsupported",
+                "type": "unsupported",
+                "title": "不支持的推荐类型",
+                "description": "应被过滤",
                 "url": "https://example.test",
                 "highlights": ["稳定"]
             },
@@ -65,9 +59,8 @@ fn normalizes_remote_ads_for_plugin_and_manager_rendering() {
     }));
 
     assert_eq!(payload["version"], json!(1));
-    assert_eq!(payload["ads"].as_array().unwrap().len(), 2);
-    assert_eq!(payload["ads"][0]["type"], json!("sponsor"));
-    assert_eq!(payload["ads"][1]["type"], json!("normal"));
+    assert_eq!(payload["ads"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["ads"][0]["type"], json!("normal"));
 }
 
 #[tokio::test]

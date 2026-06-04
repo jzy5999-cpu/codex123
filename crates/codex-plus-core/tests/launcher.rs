@@ -759,7 +759,7 @@ experimental_bearer_token = "sk-test"
 }
 
 #[tokio::test]
-async fn launch_lifecycle_writes_failure_and_cleans_helper_when_injection_fails() {
+async fn launch_lifecycle_keeps_codex_running_degraded_when_injection_is_not_ready() {
     let temp = tempfile::tempdir().unwrap();
     let app_dir = temp.path().join("Codex.app");
     std::fs::create_dir_all(&app_dir).unwrap();
@@ -767,7 +767,7 @@ async fn launch_lifecycle_writes_failure_and_cleans_helper_when_injection_fails(
     let events = Arc::new(Mutex::new(Vec::<String>::new()));
     let hooks = FakeHooks::new(events.clone()).with_inject_error("inject failed");
 
-    let error = launch_and_inject_with_hooks(
+    let handle = launch_and_inject_with_hooks(
         LaunchOptions {
             app_dir: Some(app_dir),
             debug_port: 9229,
@@ -777,9 +777,8 @@ async fn launch_lifecycle_writes_failure_and_cleans_helper_when_injection_fails(
         &hooks,
     )
     .await
-    .unwrap_err();
+    .unwrap();
 
-    assert!(error.to_string().contains("inject failed"));
     assert_eq!(
         *events.lock().unwrap(),
         vec![
@@ -789,14 +788,20 @@ async fn launch_lifecycle_writes_failure_and_cleans_helper_when_injection_fails(
             "start-helper:57321",
             "launch:9229",
             "inject:9229:57321",
-            "shutdown-helper:57321",
-            "terminate-codex",
-            "status:failed",
+            "wait-injection-retry",
+            "inject:9229:57321",
+            "status:running_degraded",
         ]
     );
     let status = status_store.load_latest().unwrap().unwrap();
-    assert_eq!(status.status, "failed");
-    assert!(status.message.contains("inject failed"));
+    assert_eq!(status.status, "running_degraded");
+    assert!(status.message.contains("codex123 增强仍在等待页面就绪"));
+
+    handle.wait_for_codex_exit().await.unwrap();
+    let events = events.lock().unwrap().clone();
+    assert!(events.contains(&"wait-codex".to_string()));
+    assert!(events.contains(&"shutdown-helper:57321".to_string()));
+    assert!(!events.contains(&"terminate-codex".to_string()));
 }
 
 #[tokio::test]
@@ -944,7 +949,7 @@ async fn launch_lifecycle_cleans_helper_and_codex_when_status_save_fails() {
 }
 
 #[tokio::test]
-async fn launch_lifecycle_terminates_packaged_process_id_when_injection_fails() {
+async fn launch_lifecycle_keeps_packaged_process_when_injection_is_not_ready() {
     let temp = tempfile::tempdir().unwrap();
     let app_dir = temp.path().join("Codex.app");
     std::fs::create_dir_all(&app_dir).unwrap();
@@ -958,7 +963,7 @@ async fn launch_lifecycle_terminates_packaged_process_id_when_injection_fails() 
         })
         .with_inject_error("inject failed");
 
-    let error = launch_and_inject_with_hooks(
+    let handle = launch_and_inject_with_hooks(
         LaunchOptions {
             app_dir: Some(app_dir),
             debug_port: 9229,
@@ -968,11 +973,12 @@ async fn launch_lifecycle_terminates_packaged_process_id_when_injection_fails() 
         &hooks,
     )
     .await
-    .unwrap_err();
+    .unwrap();
 
-    assert!(error.to_string().contains("inject failed"));
+    let status = handle.status_store.load_latest().unwrap().unwrap();
+    assert_eq!(status.status, "running_degraded");
     assert!(
-        events
+        !events
             .lock()
             .unwrap()
             .contains(&"terminate-packaged:4242".to_string())
@@ -1039,6 +1045,7 @@ struct FakeHooks {
     launch_result: CodexLaunch,
     launch_error: Option<String>,
     inject_error: Option<String>,
+    injection_retry_attempts: u32,
     provider_sync_unsupported: bool,
 }
 
@@ -1054,6 +1061,7 @@ impl FakeHooks {
             },
             launch_error: None,
             inject_error: None,
+            injection_retry_attempts: 2,
             provider_sync_unsupported: false,
         }
     }
@@ -1169,6 +1177,14 @@ impl LaunchHooks for FakeHooks {
             anyhow::bail!(message.clone());
         }
         Ok(())
+    }
+
+    fn injection_retry_attempts(&self) -> u32 {
+        self.injection_retry_attempts
+    }
+
+    async fn wait_before_injection_retry(&self) {
+        self.event("wait-injection-retry");
     }
 
     async fn write_status(&self, status: &str) {

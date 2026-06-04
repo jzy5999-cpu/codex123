@@ -55,6 +55,7 @@ pub async fn list_targets(debug_port: u16) -> anyhow::Result<Vec<CdpTarget>> {
 pub fn pick_page_target(targets: &[CdpTarget]) -> anyhow::Result<CdpTarget> {
     let pages = targets.iter().filter(|target| {
         target.target_type == "page"
+            && !is_ignored_codex_page_target(target)
             && target
                 .web_socket_debugger_url
                 .as_deref()
@@ -75,4 +76,16 @@ pub fn pick_page_target(targets: &[CdpTarget]) -> anyhow::Result<CdpTarget> {
     }
 
     bail!("No injectable Codex page target found")
+}
+
+fn is_ignored_codex_page_target(target: &CdpTarget) -> bool {
+    let haystack = format!("{} {}", target.title, target.url).to_lowercase();
+    [
+        "initialroute=%2favatar-overlay",
+        "initialroute=/avatar-overlay",
+        "/avatar-overlay",
+        "avatar-overlay",
+    ]
+    .iter()
+    .any(|marker| haystack.contains(marker))
 }

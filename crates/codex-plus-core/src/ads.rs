@@ -1,10 +1,7 @@
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const DEFAULT_AD_LIST_URLS: [&str; 2] = [
-    "https://raw.githubusercontent.com/BigPizzaV3/Ad-List/main/ads.json",
-    "https://cdn.jsdelivr.net/gh/BigPizzaV3/Ad-List@main/ads.json",
-];
+pub const DEFAULT_AD_LIST_URLS: [&str; 0] = [];
 
 pub fn normalize_ad_payload(payload: Value) -> Value {
     let version = payload.get("version").and_then(Value::as_u64).unwrap_or(1);
@@ -18,7 +15,7 @@ pub fn normalize_ad_payload(payload: Value) -> Value {
             let title = ad.get("title").and_then(Value::as_str);
             let description = ad.get("description").and_then(Value::as_str);
             let url = ad.get("url").and_then(Value::as_str);
-            matches!(ad_type, Some("sponsor" | "normal"))
+            matches!(ad_type, Some("normal"))
                 && title.is_some_and(|value| !value.trim().is_empty())
                 && description.is_some_and(|value| !value.trim().is_empty())
                 && url.is_some_and(|value| !value.trim().is_empty())
@@ -29,6 +26,9 @@ pub fn normalize_ad_payload(payload: Value) -> Value {
 }
 
 pub async fn fetch_ad_list() -> anyhow::Result<Value> {
+    if DEFAULT_AD_LIST_URLS.is_empty() {
+        return Ok(normalize_ad_payload(json!({ "version": 1, "ads": [] })));
+    }
     fetch_ad_list_from_urls(&DEFAULT_AD_LIST_URLS).await
 }
 

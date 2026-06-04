@@ -101,6 +101,27 @@ fn injection_script_unlocks_nested_disabled_plugin_install_buttons() {
 }
 
 #[test]
+fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"10\""));
+    assert!(script.contains("pluginMarketplaceUnlock: true"));
+    assert!(script.contains("settings.pluginMarketplaceUnlock = false"));
+    assert!(script.contains("if (name === \"openai-bundled\") return \"\""));
+    assert!(script.contains("codex123-openai-curated"));
+    assert!(script.contains("codex123-openai-primary-runtime"));
+    assert!(script.contains("installPluginBuildFlavorFilterPatch"));
+    assert!(script.contains("plugin_build_flavor_filter_bypassed"));
+    assert!(script.contains("plugin_marketplace_hidden_filter_bypassed"));
+    assert!(script.contains("plugin_install_request_debug"));
+    assert!(script.contains("plugin_install_request_failed"));
+    assert!(script.contains("OpenAI 精选插件"));
+    assert!(!script.contains("OpenAI插件1(Codex++)"));
+    assert!(!script.contains("OpenAI插件2(Codex++)"));
+    assert!(!script.contains("OpenAI插件3(Codex++)"));
+}
+
+#[test]
 fn injection_script_keeps_force_install_unlock_visual_state_sticky() {
     let script = assets::injection_script(57321);
 
@@ -429,6 +450,30 @@ fn pick_page_target_prefers_codex_title_or_url() {
     let picked = pick_page_target(&targets).expect("target should be selected");
 
     assert_eq!(picked.id, "second");
+}
+
+#[test]
+fn pick_page_target_skips_avatar_overlay_pet_window() {
+    let targets = vec![
+        target(
+            "pet",
+            "page",
+            "Codex",
+            "app://-/index.html?initialRoute=%2Favatar-overlay",
+            Some("ws://pet"),
+        ),
+        target(
+            "main",
+            "page",
+            "Codex",
+            "app://-/index.html",
+            Some("ws://main"),
+        ),
+    ];
+
+    let picked = pick_page_target(&targets).expect("main target should be selected");
+
+    assert_eq!(picked.id, "main");
 }
 
 #[test]

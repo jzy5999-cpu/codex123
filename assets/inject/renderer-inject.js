@@ -64,6 +64,7 @@
   const codexThreadServiceTierDraftBindWindowMs = 60 * 1000;
   const codexServiceTierRequestOverrideVersion = "2";
   const codexAppServerModelRequestPatchVersion = "1";
+  const codexPluginMarketplaceUnlockVersion = "10";
   const codexThreadScrollMaxEntries = 120;
   const codexThreadScrollSaveThrottleMs = 120;
   const codexThreadScrollRestoreWindowMs = 3200;
@@ -873,7 +874,7 @@
   }
 
   function defaultCodexPlusSettings() {
-    return { pluginEntryUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true, serviceTierControls: false };
+    return { pluginEntryUnlock: true, pluginMarketplaceUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true, serviceTierControls: false };
   }
 
   function codexPlusSettings() {
@@ -881,6 +882,7 @@
     if (codexPlusBackendSettings.enhancementsEnabled === false) {
       return {
         pluginEntryUnlock: false,
+        pluginMarketplaceUnlock: false,
         forcePluginInstall: false,
         modelWhitelistUnlock: false,
         sessionDelete: false,
@@ -900,6 +902,7 @@
       const settings = { ...defaultCodexPlusSettings(), ...JSON.parse(localStorage.getItem(codexPlusSettingsKey) || "{}") };
       if (relayPatchDisabled) {
         settings.pluginEntryUnlock = false;
+        settings.pluginMarketplaceUnlock = false;
         settings.forcePluginInstall = false;
       }
       return settings;
@@ -907,6 +910,7 @@
       const settings = defaultCodexPlusSettings();
       if (relayPatchDisabled) {
         settings.pluginEntryUnlock = false;
+        settings.pluginMarketplaceUnlock = false;
         settings.forcePluginInstall = false;
       }
       return settings;
@@ -2293,6 +2297,249 @@
       clearPluginEntryUnlockLabel(pluginButton);
     }
     pluginInstallCandidates().forEach(clearForcedInstallButtonLabel);
+  }
+
+  function pluginMarketplaceAliasForName(name) {
+    if (name === "openai-bundled") return "";
+    if (name === "openai-curated") return "codex123-openai-curated";
+    if (name === "openai-primary-runtime") return "codex123-openai-primary-runtime";
+    return "";
+  }
+
+  function restorePluginMarketplaceName(name) {
+    if (name === "codex123-openai-curated" || name === "codex-plus-openai-curated") return "openai-curated";
+    if (name === "codex123-openai-primary-runtime" || name === "codex-plus-openai-primary-runtime") return "openai-primary-runtime";
+    if (name === "codex-plus-openai-bundled") return "openai-bundled";
+    return name;
+  }
+
+  function codexPluginOfficialMarketplaceName(name) {
+    const restored = restorePluginMarketplaceName(name);
+    return restored === "openai-bundled" || restored === "openai-curated" || restored === "openai-primary-runtime";
+  }
+
+  function displayNameForPluginMarketplaceName(name, fallback) {
+    const restored = restorePluginMarketplaceName(name);
+    if (restored === "openai-bundled") return "OpenAI 插件";
+    if (restored === "openai-curated") return "OpenAI 精选插件";
+    if (restored === "openai-primary-runtime") return "OpenAI 运行时插件";
+    return fallback;
+  }
+
+  function patchPluginMarketplaceObject(marketplace) {
+    if (!marketplace || typeof marketplace !== "object" || marketplace.__codex123MarketplaceUnlockPatched) return false;
+    const alias = pluginMarketplaceAliasForName(marketplace.name);
+    if (alias) marketplace.name = alias;
+    const displayName = displayNameForPluginMarketplaceName(marketplace.name, marketplace.displayName || marketplace.title || marketplace.label || marketplace.name);
+    if (!displayName || displayName === marketplace.name) return false;
+    marketplace.displayName = displayName;
+    marketplace.title = displayName;
+    marketplace.label = displayName;
+    if (marketplace.interface && typeof marketplace.interface === "object") {
+      marketplace.interface.displayName = displayName;
+      marketplace.interface.title = displayName;
+      marketplace.interface.label = displayName;
+    }
+    marketplace.hidden = false;
+    marketplace.disabled = false;
+    marketplace.__codex123MarketplaceUnlockPatched = true;
+    return true;
+  }
+
+  function isCodexPluginBuildFlavorFilter(callback, sample) {
+    if (!Array.isArray(sample) || sample.length === 0 || typeof callback !== "function") return false;
+    let source = "";
+    try {
+      source = Function.prototype.toString.call(callback);
+    } catch {
+      return false;
+    }
+    if (!source.includes("!u(e.marketplaceName)||e.marketplaceName===r")) return false;
+    if (!sample.some((plugin) => codexPluginOfficialMarketplaceName(plugin?.marketplaceName))) return false;
+    return sample.some((plugin) => codexPluginOfficialMarketplaceName(plugin?.marketplaceName) && !callback(plugin));
+  }
+
+  function isCodexPluginMarketplaceHiddenFilter(callback, sample) {
+    if (!Array.isArray(sample) || sample.length === 0 || typeof callback !== "function") return false;
+    let source = "";
+    try {
+      source = Function.prototype.toString.call(callback);
+    } catch {
+      return false;
+    }
+    if (!source.includes("!t.includes(e.name)")) return false;
+    if (!sample.some((marketplace) => codexPluginOfficialMarketplaceName(marketplace?.name))) return false;
+    return sample.some((marketplace) => codexPluginOfficialMarketplaceName(marketplace?.name) && !callback(marketplace));
+  }
+
+  function installPluginBuildFlavorFilterPatch() {
+    if (window.__codexPluginBuildFlavorFilterPatch === codexPluginMarketplaceUnlockVersion) return;
+    if (pluginPatchDisabledInRelayMode()) return;
+    if (!codexPlusSettings().pluginMarketplaceUnlock) return;
+    const originalFilter = Array.prototype.__codexPluginBuildFlavorOriginalFilter || Array.prototype.filter;
+    if (!Array.prototype.__codexPluginBuildFlavorOriginalFilter) {
+      Object.defineProperty(Array.prototype, "__codexPluginBuildFlavorOriginalFilter", {
+        value: originalFilter,
+        configurable: true,
+        writable: true,
+      });
+    }
+    if (Array.prototype.filter.__codexPluginBuildFlavorPatched === codexPluginMarketplaceUnlockVersion) {
+      window.__codexPluginBuildFlavorFilterPatch = codexPluginMarketplaceUnlockVersion;
+      return;
+    }
+    const patchedFilter = function codexPluginBuildFlavorFilterPatch(callback, thisArg) {
+      if (isCodexPluginBuildFlavorFilter(callback, this)) {
+        sendCodexPlusDiagnostic("plugin_build_flavor_filter_bypassed", { pluginCount: this.length });
+        return Array.from(this);
+      }
+      if (isCodexPluginMarketplaceHiddenFilter(callback, this)) {
+        sendCodexPlusDiagnostic("plugin_marketplace_hidden_filter_bypassed", { marketplaceCount: this.length });
+        return Array.from(this);
+      }
+      return originalFilter.call(this, callback, thisArg);
+    };
+    patchedFilter.__codexPluginBuildFlavorPatched = codexPluginMarketplaceUnlockVersion;
+    Array.prototype.filter = patchedFilter;
+    window.__codexPluginBuildFlavorFilterPatch = codexPluginMarketplaceUnlockVersion;
+    sendCodexPlusDiagnostic("plugin_build_flavor_filter_patch_installed", {});
+  }
+
+  function restorePluginMarketplaceRequestParams(params, method = "") {
+    if (!params || typeof params !== "object") return params;
+    let next = params;
+    if (Array.isArray(params.marketplaceKinds)) {
+      const nextKinds = params.marketplaceKinds.map((kind) => {
+        if (kind === "remote:openai-curated") return "openai-curated";
+        return restorePluginMarketplaceName(kind);
+      });
+      next = { ...next, marketplaceKinds: Array.from(new Set(nextKinds)) };
+    }
+    if (method === "install-plugin") {
+      next = next === params ? { ...params } : { ...next };
+      if (next.remoteMarketplaceName) next.remoteMarketplaceName = restorePluginMarketplaceName(next.remoteMarketplaceName);
+      if (typeof next.marketplacePath === "string" && next.marketplacePath.startsWith("remote:")) {
+        const remoteMarketplaceName = next.marketplacePath.slice("remote:".length);
+        delete next.marketplacePath;
+        next.remoteMarketplaceName = restorePluginMarketplaceName(remoteMarketplaceName);
+      }
+    }
+    return next;
+  }
+
+  function patchPluginMarketplaceResult(method, result) {
+    if (method !== "list-plugins") return result;
+    let patchedCount = 0;
+    try {
+      const pluginMarketplaceCounts = {};
+      if (Array.isArray(result?.marketplaces)) {
+        result.marketplaces.forEach((marketplace) => {
+          if (Array.isArray(marketplace?.plugins)) {
+            marketplace.plugins.forEach((plugin) => {
+              const name = plugin?.marketplaceName || marketplace?.name || "";
+              if (name) pluginMarketplaceCounts[name] = (pluginMarketplaceCounts[name] || 0) + 1;
+            });
+          }
+          if (patchPluginMarketplaceObject(marketplace)) patchedCount += 1;
+        });
+        sendCodexPlusDiagnostic("plugin_marketplace_response_debug", {
+          marketplaces: result.marketplaces.map((marketplace) => ({
+            name: marketplace?.name || "",
+            path: marketplace?.path || null,
+            displayName: marketplace?.displayName || marketplace?.interface?.displayName || null,
+            pluginCount: Array.isArray(marketplace?.plugins) ? marketplace.plugins.length : null,
+            remoteMarketplaceName: marketplace?.remoteMarketplaceName || null,
+          })),
+          pluginMarketplaceCounts,
+        });
+      }
+      if (patchedCount > 0) {
+        sendCodexPlusDiagnostic("plugin_marketplace_response_expanded", { patchedCount });
+      }
+    } catch (error) {
+      sendCodexPlusDiagnostic("plugin_marketplace_response_patch_failed", {
+        errorName: error?.name || "",
+        errorMessage: error?.message || String(error),
+      });
+    }
+    return result;
+  }
+
+  function patchPluginMarketplaceRequestClient(client) {
+    if (!client || typeof client.sendRequest !== "function") return false;
+    if (client.__codex123PluginMarketplaceUnlockPatch === codexPluginMarketplaceUnlockVersion) return true;
+    const originalSendRequest = client.__codex123PluginMarketplaceOriginalSendRequest || client.sendRequest.bind(client);
+    client.__codex123PluginMarketplaceOriginalSendRequest = originalSendRequest;
+    client.sendRequest = async function codex123PluginMarketplacePatchedSendRequest(method, params, options) {
+      const requestMethod = appServerModelRequestMethod(String(method || ""), params);
+      const requestParams = restorePluginMarketplaceRequestParams(params, requestMethod);
+      if (requestMethod === "install-plugin") {
+        sendCodexPlusDiagnostic("plugin_install_request_debug", {
+          method: String(method || ""),
+          requestMethod,
+          originalMarketplacePath: params?.marketplacePath || null,
+          originalRemoteMarketplaceName: params?.remoteMarketplaceName || null,
+          originalPluginName: params?.pluginName || null,
+          requestMarketplacePath: requestParams?.marketplacePath || null,
+          requestRemoteMarketplaceName: requestParams?.remoteMarketplaceName || null,
+          requestPluginName: requestParams?.pluginName || null,
+        });
+      }
+      try {
+        const result = await originalSendRequest(method, requestParams, options);
+        return patchPluginMarketplaceResult(requestMethod, result);
+      } catch (error) {
+        if (requestMethod === "install-plugin") {
+          sendCodexPlusDiagnostic("plugin_install_request_failed", {
+            method: String(method || ""),
+            requestMethod,
+            requestMarketplacePath: requestParams?.marketplacePath || null,
+            requestRemoteMarketplaceName: requestParams?.remoteMarketplaceName || null,
+            requestPluginName: requestParams?.pluginName || null,
+            errorName: error?.name || "",
+            errorMessage: error?.message || String(error),
+          });
+        }
+        throw error;
+      }
+    };
+    client.__codex123PluginMarketplaceUnlockPatch = codexPluginMarketplaceUnlockVersion;
+    return true;
+  }
+
+  function installPluginMarketplaceRequestPatch() {
+    if (window.__codex123PluginMarketplaceRequestPatchInstalled === codexPluginMarketplaceUnlockVersion) return;
+    if (pluginPatchDisabledInRelayMode()) return;
+    if (!codexPlusSettings().pluginMarketplaceUnlock) return;
+    const patch = async () => {
+      try {
+        const module = await loadCodexAppModule("app-server-manager-signals-");
+        const candidates = Object.values(module).filter((value) => value && typeof value === "object");
+        let patchedCount = 0;
+        for (const candidate of candidates) {
+          if (patchPluginMarketplaceRequestClient(candidate)) patchedCount += 1;
+          if (typeof candidate.sendRequest !== "function" && typeof candidate.get === "function") {
+            try {
+              if (patchPluginMarketplaceRequestClient(candidate.get())) patchedCount += 1;
+            } catch {
+            }
+          }
+        }
+        if (patchedCount > 0) {
+          window.__codex123PluginMarketplaceRequestPatchInstalled = codexPluginMarketplaceUnlockVersion;
+          sendCodexPlusDiagnostic("plugin_marketplace_request_patch_installed", {
+            candidateCount: candidates.length,
+            patchedCount,
+          });
+        }
+      } catch (error) {
+        sendCodexPlusDiagnostic("plugin_marketplace_request_patch_failed", {
+          errorName: error?.name || "",
+          errorMessage: error?.message || String(error),
+        });
+      }
+    };
+    patch();
   }
 
   function unblockPluginInstallButtons() {
@@ -7286,6 +7533,8 @@
       clearPluginPatchArtifacts();
       refreshForcePluginInstallUnlockLoop();
     } else {
+      installPluginBuildFlavorFilterPatch();
+      installPluginMarketplaceRequestPatch();
       enablePluginEntry();
       unblockPluginInstallButtons();
       refreshForcePluginInstallUnlockLoop();

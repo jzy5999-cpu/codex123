@@ -39,6 +39,7 @@ After installation, you get two entry points:
 - **Remote-control-compatible relay mode**: stores the relay key in provider config, not in `auth.json` as `OPENAI_API_KEY`.
 - **Remote-control prerequisite diagnostics**: checks ChatGPT auth state, `auth_mode`, provider config, `base_url`, `wire_api`, `requires_openai_auth`, and bearer token.
 - **DeepSeek / Chat Completions compatibility**: local proxy converts Codex Responses requests to Chat Completions and converts upstream responses back.
+- **Petdex pet import**: fetch Codex-compatible pet packages from Petdex and install them into `~/.codex/pets`.
 - **External enhancement injection**: launcher + Chromium DevTools Protocol, without patching the Codex App installation.
 - **Installable macOS app**: Apple Silicon DMG with a silent launcher and a manager entry point.
 
@@ -56,6 +57,8 @@ After installation, you get two entry points:
 - Relay providers must support `/v1/responses`, or be compatible through the local Chat Completions proxy.
 
 This project is a tribute to and derivative of [CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus). CodexPlusPlus provided the external launcher, manager, CDP injection approach, installer structure, and much of the foundation that made this project possible. codex123 adds a remote-control-compatible relay mode and focuses the first deliverable on macOS Apple Silicon. It also learns from other open-source tooling practices, especially [ccswitch](https://github.com/farion1231/cc-switch)'s local routing and protocol conversion approach for connecting Codex to DeepSeek / Chat Completions upstreams, and prioritizes personal development workflows.
+
+codex123 is primarily built for the author's personal use and is open-sourced so people with similar needs can study, reference, and use it at their own risk. It is not intended for attacks, abuse, account-permission bypass, or evading platform safety mechanisms. It only enhances local configuration, launcher behavior, and CDP injection externally, with the goal of improving development experience while preserving the official ChatGPT login state where possible.
 
 codex123 is not an official OpenAI project and is not affiliated with, sponsored by, or endorsed by OpenAI. Codex, ChatGPT, and related names belong to their respective owners.
 
@@ -90,10 +93,10 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.5 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.9 arm64
 ```
 
-The generated file is `dist/macos/codex123-0.2.5-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+The generated file is `dist/macos/codex123-0.2.9-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
 
 Windows packaging is kept as a development build path and is not updated by macOS fix releases. Because the developer uses a Mac, the Windows build currently only covers code and packaging scripts; launch behavior, CDP injection, and remote-control-compatible relay behavior have not been verified on a real Windows environment. Local Windows builds require the Rust MSVC toolchain, Node.js 22, and NSIS:
 
@@ -125,6 +128,28 @@ Recommended DeepSeek setup:
 4. When using remote-control-compatible relay mode, keep `wire_api = "responses"` and start Codex from the `codex123` entry point.
 
 The current compatibility layer includes DeepSeek reasoning effort mapping, `reasoning_content` streaming conversion, a fallback `reasoning_content` for assistant tool-call history, and basic tool-call history conversion. This improves DeepSeek stability for long sessions and tool use, but it does not guarantee that every DeepSeek relay will work; the relay still needs compatible Chat Completions, streaming, and tool-call behavior.
+
+## Petdex Pet Import
+
+The manager includes a Petdex MVP for installing Codex-compatible pet packages into the user data directory:
+
+```text
+~/.codex/pets/<slug>/
+├── pet.json
+└── spritesheet.webp or spritesheet.png
+```
+
+How to use it:
+
+1. Open `codex123 管理工具`.
+2. Go to `宠物导入`.
+3. Click `刷新 Petdex`.
+4. Browse the list sorted by local heat score, then search and install the pet you want.
+5. Open Codex and choose it manually in `Settings -> Appearance -> Pets`.
+
+This feature only writes to `~/.codex/pets`. It does not modify the original Codex App installation and does not automatically change Codex's internal selected-pet state. Before installation, codex123 validates HTTPS, allowed asset hosts, slug safety, JSON format, PNG/WEBP spritesheets, file size limits, and uses a temporary directory for atomic installation. Each install writes `codex123-installed.json` metadata for update detection, and the local installed list can delete valid slug directories.
+
+The pet list currently uses a local `codex123` composite heat score so it is easier to pick fuller or already-maintained pets first. This is not an official Petdex download count, like count, or popularity metric.
 
 ## Open Source and Thanks
 

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use codex_plus_core::install::SILENT_BINARY;
+use codex_plus_core::petdex::{PetdexInstallRequest, PetdexInstallResult, PetdexManifest};
 use codex_plus_core::script_market::{self, MarketScript, ScriptMarketManifest};
 use codex_plus_core::settings::{BackendSettings, RelayProfile, SettingsStore};
 use codex_plus_core::status::{LaunchStatus, StatusStore};
@@ -226,6 +227,33 @@ pub struct ScriptMarketPayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PetdexPayload {
+    pub manifest: PetdexManifest,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledPetsPayload {
+    pub pets_dir: String,
+    pub installed: Vec<codex_plus_core::petdex::InstalledPet>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetInstallPayload {
+    pub install: PetdexInstallResult,
+    pub manifest: PetdexManifest,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PetDeletePayload {
+    pub deleted: codex_plus_core::petdex::InstalledPet,
+    pub manifest: PetdexManifest,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartupPayload {
     pub show_update: bool,
 }
@@ -319,6 +347,7 @@ pub fn launch_codex_plus(request: LaunchRequest) -> CommandResult<Value> {
 pub fn restart_codex_plus(request: LaunchRequest) -> CommandResult<Value> {
     codex_plus_core::watcher::stop_launcher_processes();
     codex_plus_core::watcher::stop_codex_processes();
+    wait_for_launcher_guard_release();
     spawn_codex_plus_launch(request, "Codex 已请求重启，启动任务正在后台运行。")
 }
 
@@ -372,6 +401,17 @@ fn spawn_silent_launcher(request: &LaunchRequest) -> anyhow::Result<()> {
         .spawn()
         .map(|_| ())
         .map_err(|error| anyhow::anyhow!("无法启动 {}：{error}", launcher.to_string_lossy()))
+}
+
+fn wait_for_launcher_guard_release() {
+    for _ in 0..20 {
+        if codex_plus_core::ports::can_bind_loopback_port(
+            codex_plus_core::ports::LAUNCHER_GUARD_PORT,
+        ) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 }
 
 #[tauri::command]
@@ -510,6 +550,9 @@ fn normalize_settings_before_save(mut settings: BackendSettings) -> BackendSetti
             &settings.relay_context_config_contents,
         );
     for profile in &mut settings.relay_profiles {
+        if should_skip_storage_normalization(profile) {
+            continue;
+        }
         if let Err(error) =
             codex_plus_core::relay_config::normalize_relay_profile_for_storage(profile)
         {
@@ -545,6 +588,16 @@ fn normalize_settings_before_save(mut settings: BackendSettings) -> BackendSetti
         }
     }
     settings
+}
+
+fn should_skip_storage_normalization(profile: &RelayProfile) -> bool {
+    profile.relay_mode == codex_plus_core::settings::RelayMode::Official
+        && !profile.official_mix_api_key
+        && profile.config_contents.trim().is_empty()
+        && profile.model.trim().is_empty()
+        && profile.base_url.trim().is_empty()
+        && profile.upstream_base_url.trim().is_empty()
+        && profile.api_key.trim().is_empty()
 }
 
 fn settings_with_live_ccs_profiles(mut settings: BackendSettings) -> BackendSettings {
@@ -760,6 +813,137 @@ pub async fn refresh_script_market() -> CommandResult<ScriptMarketPayload> {
         Err(error) => failed(
             &format!("脚本市场加载失败：{error}"),
             failed_script_market_payload(&format!("脚本市场加载失败：{error}")),
+        ),
+    }
+}
+
+#[tauri::command]
+pub async fn refresh_petdex() -> CommandResult<PetdexPayload> {
+    match codex_plus_core::petdex::fetch_manifest().await {
+        Ok(manifest) => ok(
+            &format!("Petdex 已刷新：{} 个宠物。", manifest.pets.len()),
+            PetdexPayload { manifest },
+        ),
+        Err(error) => failed(
+            &format!("Petdex 刷新失败：{error}"),
+            PetdexPayload {
+                manifest: fallback_petdex_manifest(),
+            },
+        ),
+    }
+}
+
+#[tauri::command]
+pub fn list_installed_pets() -> CommandResult<InstalledPetsPayload> {
+    let pets_dir = codex_plus_core::petdex::default_pets_dir();
+    match codex_plus_core::petdex::list_installed_pets() {
+        Ok(installed) => ok(
+            &format!("已读取本地宠物：{} 个。", installed.len()),
+            InstalledPetsPayload {
+                pets_dir: pets_dir.to_string_lossy().to_string(),
+                installed,
+            },
+        ),
+        Err(error) => failed(
+            &format!("读取本地宠物失败：{error}"),
+            InstalledPetsPayload {
+                pets_dir: pets_dir.to_string_lossy().to_string(),
+                installed: Vec::new(),
+            },
+        ),
+    }
+}
+
+#[tauri::command]
+pub async fn install_petdex_pet(request: PetdexInstallRequest) -> CommandResult<PetInstallPayload> {
+    match codex_plus_core::petdex::install_from_petdex(request).await {
+        Ok(install) => match codex_plus_core::petdex::fetch_manifest().await {
+            Ok(manifest) => ok(
+                &format!(
+                    "宠物 {} 已安装。请在 Codex 设置中选择该宠物。",
+                    install.slug
+                ),
+                PetInstallPayload { install, manifest },
+            ),
+            Err(error) => {
+                let message = format!("宠物已安装，但刷新 Petdex 状态失败：{error}");
+                ok(
+                    &message,
+                    PetInstallPayload {
+                        install,
+                        manifest: fallback_petdex_manifest(),
+                    },
+                )
+            }
+        },
+        Err(error) => failed(
+            &format!("宠物安装失败：{error}"),
+            PetInstallPayload {
+                install: PetdexInstallResult {
+                    slug: String::new(),
+                    path: String::new(),
+                    pet_json_file: String::new(),
+                    spritesheet_file: String::new(),
+                    overwritten: false,
+                },
+                manifest: fallback_petdex_manifest(),
+            },
+        ),
+    }
+}
+
+#[tauri::command]
+pub async fn delete_installed_pet(slug: String) -> CommandResult<PetDeletePayload> {
+    match codex_plus_core::petdex::delete_installed_pet(&slug) {
+        Ok(deleted) => match codex_plus_core::petdex::fetch_manifest().await {
+            Ok(manifest) => ok(
+                &format!("宠物 {} 已删除。", deleted.slug),
+                PetDeletePayload { deleted, manifest },
+            ),
+            Err(error) => ok(
+                &format!("宠物已删除，但刷新 Petdex 状态失败：{error}"),
+                PetDeletePayload {
+                    deleted,
+                    manifest: fallback_petdex_manifest(),
+                },
+            ),
+        },
+        Err(error) => failed(
+            &format!("宠物删除失败：{error}"),
+            PetDeletePayload {
+                deleted: codex_plus_core::petdex::InstalledPet {
+                    slug: String::new(),
+                    display_name: String::new(),
+                    path: String::new(),
+                    spritesheet_file: None,
+                    source: String::new(),
+                    pet_json_url: String::new(),
+                    spritesheet_url: String::new(),
+                    installed_at_ms: None,
+                },
+                manifest: fallback_petdex_manifest(),
+            },
+        ),
+    }
+}
+
+#[tauri::command]
+pub fn open_pets_directory() -> CommandResult<Value> {
+    let pets_dir = codex_plus_core::petdex::default_pets_dir();
+    match std::fs::create_dir_all(&pets_dir) {
+        Ok(()) => match open_path(&pets_dir) {
+            Ok(()) => ok(
+                "已打开 Codex 宠物目录。",
+                json!({ "path": pets_dir.to_string_lossy() }),
+            ),
+            Err(error) => failed(
+                &format!("打开宠物目录失败：{error}"),
+                json!({ "path": pets_dir.to_string_lossy() }),
+            ),
+        },
+        Err(error) => failed(
+            &format!("创建宠物目录失败：{error}"),
+            json!({ "path": pets_dir.to_string_lossy() }),
         ),
     }
 }
@@ -1878,6 +2062,44 @@ fn open_url(url: &str) -> anyhow::Result<()> {
     }
 }
 
+fn open_path(path: &std::path::Path) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| anyhow::anyhow!("启动文件管理器失败：{error}"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| anyhow::anyhow!("启动 Finder 失败：{error}"))
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| anyhow::anyhow!("启动文件管理器失败：{error}"))
+    }
+}
+
+fn fallback_petdex_manifest() -> PetdexManifest {
+    let pets_dir = codex_plus_core::petdex::default_pets_dir();
+    let installed = codex_plus_core::petdex::list_installed_pets().unwrap_or_default();
+    PetdexManifest {
+        manifest_url: "https://petdex.crafter.run/api/manifest".to_string(),
+        pets_dir: pets_dir.to_string_lossy().to_string(),
+        pets: Vec::new(),
+        installed,
+    }
+}
+
 fn settings_payload(message: &str, failure_context: &str) -> CommandResult<SettingsPayload> {
     match settings_payload_value() {
         Ok(payload) => ok(message, payload),
@@ -2504,6 +2726,29 @@ mod tests {
             .expect("official auth should remain valid JSON");
         assert_eq!(auth["auth_mode"], "chatgpt");
         assert_eq!(auth["tokens"]["access_token"], "edited");
+        assert!(normalized.relay_profiles[0].config_contents.is_empty());
+    }
+
+    #[test]
+    fn normalize_settings_before_save_skips_empty_official_profile_storage_normalization() {
+        let settings = BackendSettings {
+            relay_profiles: vec![RelayProfile {
+                relay_mode: codex_plus_core::settings::RelayMode::Official,
+                official_mix_api_key: false,
+                name: "默认中转".to_string(),
+                auth_contents: "live official auth snapshot".to_string(),
+                config_contents: String::new(),
+                ..RelayProfile::default()
+            }],
+            ..BackendSettings::default()
+        };
+
+        let normalized = normalize_settings_before_save(settings);
+
+        assert_eq!(
+            normalized.relay_profiles[0].auth_contents,
+            "live official auth snapshot"
+        );
         assert!(normalized.relay_profiles[0].config_contents.is_empty());
     }
 
