@@ -351,9 +351,6 @@ scripts/installer/
   macos/package-dmg.sh          macOS DMG 打包
 ```
 
-## 友情链接
-
-- [LINUX DO](https://linux.do)
 
 ## 说明
 

@@ -291,9 +291,6 @@ scripts/installer/
   macos/package-dmg.sh          macOS DMG packager
 ```
 
-## Friendly Links
-
-- [LINUX DO](https://linux.do)
 
 ## Notes
 
