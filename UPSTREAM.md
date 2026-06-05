@@ -7,6 +7,17 @@
 - Imported commit: `67fa2a6b1de5a32455c0c64c2861caf9beb4ffe8`
 - Imported at: `2026-05-31T14:10:57Z`
 
+## Upstream Checks
+
+- Last checked upstream `main`: `8205bb5`
+- Checked at: `2026-06-05`
+- Selection policy: codex123 reviews CodexPlusPlus changes case by case and
+  imports only the parts that fit this project's macOS-first, personal-use,
+  development-experience-focused scope.
+- Potential future imports from this check: Codex App version-gated plugin
+  unlock behavior and provider-sync target selection. These affect injection
+  and provider behavior, so they should be tested separately before release.
+
 ## Local Changes
 
 - Added an explicit `RemoteRelay` / "远控兼容中转" mode.
