@@ -104,6 +104,12 @@ fn macos_packager_hides_silent_launcher_but_not_manager() {
     assert!(script.contains("ARCH=\"${2:-$(uname -m)}\""));
     assert!(script.contains("BINARY_DIR=\"${BINARY_DIR:-$ROOT/target/release}\""));
     assert!(script.contains("codex123-${VERSION}-macos-${ARCH}.dmg"));
+    assert!(script.contains("printf 'APPL????' > \"$app_dir/Contents/PkgInfo\""));
+    assert!(script.contains("<key>CFBundleInfoDictionaryVersion</key>"));
+    assert!(script.contains("<key>NSHighResolutionCapable</key>"));
+    assert!(script.contains("codesign --force --sign - \"$app_dir/Contents/MacOS/$executable\""));
+    assert!(script.contains("verify_app \"$STAGE/codex123.app\""));
+    assert!(!script.contains("codesign --force --deep --sign - \"$app_dir\""));
     assert!(script.contains(
         "create_app \"codex123\" \"codex123\" \"$BINARY_DIR/codex123\" \"com.jzy5999.codex123\" \"true\""
     ));

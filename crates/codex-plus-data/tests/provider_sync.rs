@@ -22,6 +22,27 @@ fn write_rollout(path: &Path, provider: &str, thread_id: &str, cwd: &str) {
     fs::write(path, format!("{first}\n{event}\n")).unwrap();
 }
 
+fn write_rollout_with_providers(path: &Path, providers: &[&str], thread_id: &str, cwd: &str) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let mut lines = Vec::new();
+    for provider in providers {
+        lines.push(
+            json!({
+                "type": "session_meta",
+                "payload": {
+                    "id": thread_id,
+                    "model_provider": provider,
+                    "cwd": cwd
+                }
+            })
+            .to_string(),
+        );
+        lines.push(json!({"type": "event_msg", "payload": {"type": "task_started"}}).to_string());
+    }
+    lines.push(json!({"type": "event_msg", "payload": {"type": "user_message"}}).to_string());
+    fs::write(path, format!("{}\n", lines.join("\n"))).unwrap();
+}
+
 fn create_state_db(path: &Path) {
     let db = Connection::open(path).unwrap();
     db.execute(
@@ -34,6 +55,42 @@ fn create_state_db(path: &Path) {
         [],
     )
     .unwrap();
+}
+
+#[test]
+fn provider_sync_rewrites_all_session_meta_model_providers() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path().join(".codex");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
+    let rollout = home.join("sessions/2026/rollout-multi-meta.jsonl");
+    write_rollout_with_providers(
+        &rollout,
+        &["openai", "ccx", "codex123"],
+        "thread-1",
+        "C:/workspace",
+    );
+    create_state_db(&home.join("state_5.sqlite"));
+
+    let result = run_provider_sync(Some(&home));
+
+    assert_eq!(result.status, ProviderSyncStatus::Synced);
+    assert_eq!(result.target_provider, "apigather");
+    assert_eq!(result.changed_session_files, 1);
+
+    let providers = fs::read_to_string(&rollout)
+        .unwrap()
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| record["type"] == "session_meta")
+        .map(|record| {
+            record["payload"]["model_provider"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(providers, vec!["apigather", "apigather", "apigather"]);
 }
 
 #[test]
@@ -194,13 +251,8 @@ fn provider_sync_restores_rollout_first_line_when_later_step_fails() {
     fs::create_dir(&home).unwrap();
     fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
     let rollout = home.join("sessions/rollout-needs-rewrite.jsonl");
-    write_rollout(&rollout, "openai", "thread-1", "C:/workspace");
-    let original_first_line = fs::read_to_string(&rollout)
-        .unwrap()
-        .lines()
-        .next()
-        .unwrap()
-        .to_string();
+    write_rollout_with_providers(&rollout, &["openai", "ccx"], "thread-1", "C:/workspace");
+    let original_text = fs::read_to_string(&rollout).unwrap();
     let db = Connection::open(home.join("state_5.sqlite")).unwrap();
     db.execute(
         "CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT, archived INTEGER, has_user_event INTEGER, cwd TEXT)",
@@ -223,13 +275,8 @@ fn provider_sync_restores_rollout_first_line_when_later_step_fails() {
 
     assert_eq!(result.status, ProviderSyncStatus::Skipped);
     assert!(result.message.contains("Provider sync skipped"));
-    let restored_first_line = fs::read_to_string(&rollout)
-        .unwrap()
-        .lines()
-        .next()
-        .unwrap()
-        .to_string();
-    assert_eq!(restored_first_line, original_first_line);
+    let restored_text = fs::read_to_string(&rollout).unwrap();
+    assert_eq!(restored_text, original_text);
 }
 
 #[test]

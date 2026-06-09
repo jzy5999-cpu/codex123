@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.11 - 2026-06-09
+
+- 选择性合入 CodexPlusPlus `v1.2.4` 的 Provider Sync 多 `session_meta` 修复：同一个 rollout JSONL 中的所有 `session_meta` 现在都会同步到目标 provider，并在失败时回滚完整文件内容。
+- 选择性合入 CodexPlusPlus `v1.2.4` 的 macOS DMG bundle 结构修复：补全 `PkgInfo`、关键 `Info.plist` 字段、两步 ad-hoc 签名和 bundle 校验，同时保留 `codex123` 品牌、arm64-only 打包和可执行文件重命名。
+
 ## 0.2.10 - 2026-06-09
 
 - 选择性合入 CodexPlusPlus 上游插件解锁策略更新：桥接层会暴露当前启动的 Codex App 版本，注入脚本按版本自动选择旧版“插件入口解锁”或新版“插件市场解锁”路径。
