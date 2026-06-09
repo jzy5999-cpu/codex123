@@ -105,6 +105,7 @@ fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
     let script = assets::injection_script(57321);
 
     assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"10\""));
+    assert!(script.contains("codexPluginLegacyEntryUnlockBeforeVersion = \"26.601.21317\""));
     assert!(script.contains("pluginMarketplaceUnlock: true"));
     assert!(script.contains("settings.pluginMarketplaceUnlock = false"));
     assert!(script.contains("if (name === \"openai-bundled\") return \"\""));
@@ -119,6 +120,44 @@ fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
     assert!(!script.contains("OpenAI插件1(Codex++)"));
     assert!(!script.contains("OpenAI插件2(Codex++)"));
     assert!(!script.contains("OpenAI插件3(Codex++)"));
+}
+
+#[test]
+fn injection_script_menu_exposes_three_independent_plugin_switches() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("插件市场解锁"));
+    assert!(script.contains("强制解锁插件入口"));
+    assert!(script.contains("特殊插件强制安装"));
+    assert!(script.contains("data-codex-backend-setting=\"codexAppPluginMarketplaceUnlock\""));
+    assert!(script.contains("data-codex-backend-setting=\"codexAppPluginEntryUnlock\""));
+    assert!(script.contains("data-codex-backend-setting=\"codexAppForcePluginInstall\""));
+}
+
+#[test]
+fn injection_script_defines_version_gated_plugin_unlock_strategy() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("function parseCodexVersionParts"));
+    assert!(script.contains("function compareCodexVersions"));
+    assert!(script.contains("function codexPluginUnlockStrategy"));
+    assert!(script.contains("plugin_unlock_strategy_selected"));
+    assert!(script.contains("codexAppVersion"));
+}
+
+#[test]
+fn injection_script_gates_legacy_and_modern_plugin_unlock_by_codex_version() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains(
+        "pluginUnlockStrategy === \"modern-marketplace\" || pluginUnlockStrategy === \"unknown\""
+    ));
+    assert!(script.contains(
+        "pluginUnlockStrategy === \"legacy-entry\" || pluginUnlockStrategy === \"unknown\""
+    ));
+    assert!(script.contains("installPluginBuildFlavorFilterPatch();"));
+    assert!(script.contains("installPluginMarketplaceRequestPatch();"));
+    assert!(script.contains("enablePluginEntry();"));
 }
 
 #[test]

@@ -990,7 +990,7 @@ async fn default_provider_sync_enabled_fails_instead_of_silently_skipping() {
     let hooks = FakeHooks::new(Arc::new(Mutex::new(Vec::new()))).with_provider_sync_unsupported();
 
     let error = hooks
-        .run_provider_sync()
+        .run_provider_sync(&BackendSettings::default())
         .await
         .expect_err("default-style provider sync should be explicit");
 
@@ -1027,7 +1027,7 @@ fn launcher_macos_cleanup_is_skipped_when_app_was_already_running() {
 #[tokio::test]
 async fn default_launch_hooks_provider_sync_enabled_returns_explicit_error() {
     let error = DefaultLaunchHooks::default()
-        .run_provider_sync()
+        .run_provider_sync(&BackendSettings::default())
         .await
         .expect_err("default provider sync should not silently skip");
 
@@ -1135,7 +1135,7 @@ impl LaunchHooks for FakeHooks {
         Ok(self.settings.clone())
     }
 
-    async fn run_provider_sync(&self) -> anyhow::Result<()> {
+    async fn run_provider_sync(&self, _settings: &BackendSettings) -> anyhow::Result<()> {
         self.event("provider-sync");
         if self.provider_sync_unsupported {
             anyhow::bail!("provider sync requires launcher hooks");

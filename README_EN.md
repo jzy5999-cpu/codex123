@@ -165,9 +165,9 @@ Thanks also to [ccswitch](https://github.com/farion1231/cc-switch) for its local
 - Tauri + React manager with dark/light theme support.
 - External CDP injection. No `app.asar` patching and no DLL writes into the Codex installation.
 - Relay injection mode with multiple relay profiles, `codex123` provider configuration, and a one-click switch back to official ChatGPT login mode.
-- Traditional enhancement mode with plugin entry unlock, forced plugin install, session delete, Markdown export, project move, Timeline, and more.
+- Traditional enhancement mode that selects plugin marketplace unlock or plugin entry unlock by Codex App version, plus forced plugin install, session delete, Markdown export, project move, Timeline, and more.
 - Independent user script management with startup injection.
-- Provider Sync to keep historical sessions visible after switching providers.
+- Provider Sync to keep historical sessions visible after switching providers, with either the current `config.toml` target or a manually selected provider id.
 - Zed open entry detects remote SSH context and opens the matching remote file in Zed Remote Development from Codex.
 - Upstream worktree creation: create new worktrees from `upstream/<base-branch>` after fetching the remote branch, reducing conflicts caused by stale local HEAD state.
 - GitHub Release updates. Both the manager and silent launcher can detect available updates.
@@ -206,6 +206,14 @@ Enhancements are controlled in the manager. Enhancement injection is enabled by 
 
 When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, and user scripts, can still be used.
 
+In traditional enhancement mode, plugin-related controls are split into three independent switches:
+
+- **Plugin marketplace unlock**: for newer Codex App versions, patching marketplace filtering, hidden lists, and install requests.
+- **Force plugin entry unlock**: for older Codex App versions, forcing the sidebar plugin entry to show.
+- **Special plugin forced install**: lifts frontend `App unavailable` / unavailable-state disabled install buttons.
+
+The manager shows the detected Codex App version. The injected script then automatically chooses the legacy entry strategy or the modern marketplace strategy. If the version cannot be detected, codex123 conservatively tries both strategies and records a `plugin_unlock_strategy_selected` diagnostic event.
+
 ## Updates and Packages
 
 codex123 publishes installers through GitHub Releases. Windows builds an NSIS x64 installer, while macOS builds an Apple Silicon arm64 DMG. The Windows installer is currently a development build and has not been real-machine verified.
@@ -220,6 +228,12 @@ The manager's About page can check and start updates. When the silent launcher f
 - codex123 state and logs: `~/.codex123/`
 - Legacy compatibility: if `~/.codex123/settings.json` does not exist, the manager reads `~/.codex-session-delete/settings.json`; saving writes to the new path.
 - Provider Sync backups: `~/.codex/backups_state/provider-sync`
+
+## Provider Sync Target
+
+Provider Sync uses the `model_provider` from `~/.codex/config.toml` by default and syncs historical session ownership to that provider. The manager's Historical Session Repair page shows both the automatic target and the target that will be used for the next repair.
+
+When you need to repair history into a specific provider, switch to manual target mode and enter `openai`, `codex123`, or another provider id. A backup is created before rewriting data under `~/.codex/backups_state/provider-sync`.
 
 ## FAQ
 

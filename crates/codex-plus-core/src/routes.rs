@@ -43,12 +43,28 @@ impl BridgeContext {
     ) -> Self {
         Self::new(Arc::new(CoreSettingsService::default()), runtime, data)
     }
+
+    pub fn core_with_data_and_app_dir(
+        runtime: Arc<dyn BridgeRuntimeService>,
+        data: Arc<dyn BridgeDataService>,
+        app_dir: PathBuf,
+    ) -> Self {
+        Self::new(
+            Arc::new(CoreSettingsService::with_app_dir(app_dir)),
+            runtime,
+            data,
+        )
+    }
 }
 
 #[async_trait]
 pub trait BridgeSettingsService: Send + Sync {
     async fn get_settings(&self) -> anyhow::Result<BackendSettings>;
     async fn set_settings(&self, payload: Value) -> anyhow::Result<BackendSettings>;
+
+    async fn codex_app_version(&self) -> anyhow::Result<String> {
+        Ok(String::new())
+    }
 }
 
 #[async_trait]
@@ -109,8 +125,10 @@ pub async fn handle_bridge_request(
         }),
     );
     let result = match path {
-        "/settings/get" => settings_value(ctx.settings.get_settings().await),
-        "/settings/set" => settings_value(ctx.settings.set_settings(payload.clone()).await),
+        "/settings/get" => settings_value(&ctx, ctx.settings.get_settings().await).await,
+        "/settings/set" => {
+            settings_value(&ctx, ctx.settings.set_settings(payload.clone()).await).await
+        }
         "/user-scripts/list" => ctx.runtime.user_script_inventory().await,
         "/user-scripts/set-enabled" => {
             let enabled = payload
@@ -237,6 +255,16 @@ pub async fn handle_bridge_request(
 #[derive(Default)]
 pub struct CoreSettingsService {
     store: SettingsStore,
+    app_dir: Option<PathBuf>,
+}
+
+impl CoreSettingsService {
+    fn with_app_dir(app_dir: PathBuf) -> Self {
+        Self {
+            store: SettingsStore::default(),
+            app_dir: Some(app_dir),
+        }
+    }
 }
 
 #[async_trait]
@@ -247,6 +275,21 @@ impl BridgeSettingsService for CoreSettingsService {
 
     async fn set_settings(&self, payload: Value) -> anyhow::Result<BackendSettings> {
         self.store.update(payload)
+    }
+
+    async fn codex_app_version(&self) -> anyhow::Result<String> {
+        if let Some(app_dir) = self.app_dir.as_deref() {
+            return Ok(crate::app_paths::codex_app_version(app_dir).unwrap_or_default());
+        }
+        let settings = self.store.load().unwrap_or_default();
+        let app_dir = crate::app_paths::resolve_codex_app_dir_with_saved(
+            None,
+            Some(settings.codex_app_path.as_str()),
+        );
+        Ok(app_dir
+            .as_deref()
+            .and_then(crate::app_paths::codex_app_version)
+            .unwrap_or_default())
     }
 }
 
@@ -529,8 +572,27 @@ fn spawn_manager(manager_path: &Path) -> anyhow::Result<()> {
         .map_err(|error| anyhow::anyhow!("启动管理工具失败：{error}"))
 }
 
-fn settings_value(result: anyhow::Result<BackendSettings>) -> anyhow::Result<Value> {
-    Ok(serde_json::to_value(result?)?)
+fn settings_payload_value(
+    settings: BackendSettings,
+    codex_app_version: String,
+) -> anyhow::Result<Value> {
+    let mut value = serde_json::to_value(settings)?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "codexAppVersion".to_string(),
+            Value::String(codex_app_version),
+        );
+    }
+    Ok(value)
+}
+
+async fn settings_value(
+    ctx: &BridgeContext,
+    result: anyhow::Result<BackendSettings>,
+) -> anyhow::Result<Value> {
+    let settings = result?;
+    let codex_app_version = ctx.settings.codex_app_version().await.unwrap_or_default();
+    settings_payload_value(settings, codex_app_version)
 }
 
 fn result_value<T>(result: anyhow::Result<T>) -> anyhow::Result<Value>

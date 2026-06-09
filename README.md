@@ -206,9 +206,9 @@ makensis /DVERSION=0.2.2 codex123.nsi
 - Tauri + React 管理工具，支持深色/浅色切换。
 - 外部 CDP 注入，不改 `app.asar`，不向 Codex 安装目录写入 DLL。
 - 中转注入模式：支持多个中转配置，写入 `codex123` provider，并可切回官方 ChatGPT 登录态。
-- 传统增强模式：插件入口解锁、特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
+- 传统增强模式：按 Codex App 版本选择插件市场解锁或插件入口解锁，并支持特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
 - 用户脚本独立管理，可在启动时注入自定义脚本。
-- Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见。
+- Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见；可使用当前 `config.toml` 自动目标，也可手动指定目标 provider。
 - Zed 打开入口：识别远程 SSH 上下文后，可从 Codex 直接打开对应文件到 Zed Remote Development。
 - Upstream worktree 创建：可从 `upstream/<base-branch>` 创建新 worktree，创建前自动 fetch 远端分支，降低从陈旧本地 HEAD 派生导致的冲突风险。
 - GitHub Release 自动更新，管理工具和静默启动器都会检测可用更新。
@@ -225,7 +225,7 @@ Codex 原生会话列表只有归档入口，没有真正的删除按钮：
 
 ![原生会话列表缺少删除能力](docs/images/pain-no-delete-button.png)
 
-codex123 启动后会解锁插件入口，并在会话列表悬停时显示删除按钮：
+codex123 启动后会按 Codex App 版本选择插件解锁策略，并在会话列表悬停时显示删除按钮：
 
 ![codex123 解锁插件入口并添加删除按钮](docs/images/solution-plugin-and-delete.png)
 
@@ -266,6 +266,14 @@ experimental_bearer_token = "sk-..."
 
 如果启用中转注入模式，插件入口解锁和强制安装不再需要，界面会提示“中转注入模式下无需开启”。会话删除、导出、移动、Timeline 和用户脚本等增强仍可继续使用。
 
+完整增强模式下，插件相关能力拆成三项独立开关：
+
+- **插件市场解锁**：面向新版 Codex App，修正插件市场过滤、隐藏列表和安装请求。
+- **强制解锁插件入口**：面向旧版 Codex App，强制显示侧栏插件入口。
+- **特殊插件强制安装**：解除前端 `App unavailable` / 应用不可用导致的安装按钮禁用。
+
+管理工具会显示当前检测到的 Codex App 版本；注入脚本会根据版本自动选择旧版入口策略或新版市场策略。如果版本无法识别，会保守尝试两类策略，并写入 `plugin_unlock_strategy_selected` 诊断事件。
+
 ## 自动更新与安装包
 
 codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包；其中 Windows 安装包仅作为开发构建提供，尚未实机验证。
@@ -280,6 +288,12 @@ codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silico
 - codex123 状态与日志：`~/.codex123/`
 - 旧版兼容读取：如果 `~/.codex123/settings.json` 不存在，管理工具会读取旧路径 `~/.codex-session-delete/settings.json`；保存后会写入新路径。
 - Provider 同步备份：`~/.codex/backups_state/provider-sync`
+
+## 历史会话修复目标
+
+Provider Sync 默认会读取 `~/.codex/config.toml` 的 `model_provider` 作为目标，把历史会话的归属标记同步到当前 provider。管理工具的“历史会话修复”页面会显示自动目标和本次目标。
+
+如果你明确要把历史会话整理到某个 provider，可以切到“手动：指定 provider id”，填写 `openai`、`codex123` 或其他 provider id。执行前会创建备份，位置仍是 `~/.codex/backups_state/provider-sync`。
 
 ## 常见问题
 

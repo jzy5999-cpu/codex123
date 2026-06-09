@@ -42,20 +42,43 @@ struct SessionChange {
 }
 
 pub fn run_provider_sync(codex_home: Option<&Path>) -> ProviderSyncResult {
+    run_provider_sync_with_target(codex_home, None)
+}
+
+pub fn run_provider_sync_with_target(
+    codex_home: Option<&Path>,
+    target_provider: Option<&str>,
+) -> ProviderSyncResult {
     let home = codex_home
         .map(Path::to_path_buf)
         .unwrap_or_else(|| dirs_home().join(".codex"));
+    let requested_target = match target_provider {
+        Some(value) => match normalize_requested_provider(value) {
+            Ok(provider) => Some(provider),
+            Err(message) => {
+                return result(
+                    ProviderSyncStatus::Skipped,
+                    message,
+                    DEFAULT_PROVIDER,
+                    None,
+                    0,
+                    0,
+                );
+            }
+        },
+        None => None,
+    };
     if !home.exists() {
         return result(
             ProviderSyncStatus::Skipped,
             format!("Codex home not found: {}", home.to_string_lossy()),
-            DEFAULT_PROVIDER,
+            requested_target.as_deref().unwrap_or(DEFAULT_PROVIDER),
             None,
             0,
             0,
         );
     }
-    let target_provider = read_current_provider(&home.join("config.toml"));
+    let target_provider = requested_target.unwrap_or_else(|| current_provider(Some(&home)));
     let lock_dir = home.join("tmp/provider-sync.lock");
     if acquire_lock(&lock_dir).is_err() {
         return result(
@@ -144,6 +167,13 @@ pub fn run_provider_sync(codex_home: Option<&Path>) -> ProviderSyncResult {
     })
 }
 
+pub fn current_provider(codex_home: Option<&Path>) -> String {
+    let home = codex_home
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| dirs_home().join(".codex"));
+    read_current_provider(&home.join("config.toml"))
+}
+
 fn result(
     status: ProviderSyncStatus,
     message: impl Into<String>,
@@ -191,6 +221,21 @@ fn read_current_provider(path: &Path) -> String {
         }
     }
     DEFAULT_PROVIDER.to_string()
+}
+
+fn normalize_requested_provider(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("Provider sync target provider is empty".to_string());
+    }
+    if trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+    {
+        Ok(trimmed.to_string())
+    } else {
+        Err("Provider sync target provider can only contain letters, numbers, underscores, dashes, and dots".to_string())
+    }
 }
 
 fn acquire_lock(path: &Path) -> std::io::Result<()> {

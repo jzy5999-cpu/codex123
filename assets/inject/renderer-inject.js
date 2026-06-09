@@ -65,6 +65,7 @@
   const codexServiceTierRequestOverrideVersion = "2";
   const codexAppServerModelRequestPatchVersion = "1";
   const codexPluginMarketplaceUnlockVersion = "10";
+  const codexPluginLegacyEntryUnlockBeforeVersion = "26.601.21317";
   const codexThreadScrollMaxEntries = 120;
   const codexThreadScrollSaveThrottleMs = 120;
   const codexThreadScrollRestoreWindowMs = 3200;
@@ -877,6 +878,19 @@
     return { pluginEntryUnlock: true, pluginMarketplaceUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true, serviceTierControls: false };
   }
 
+  function applyBackendPluginSettings(settings) {
+    if (typeof codexPlusBackendSettings.codexAppPluginEntryUnlock === "boolean") {
+      settings.pluginEntryUnlock = codexPlusBackendSettings.codexAppPluginEntryUnlock;
+    }
+    if (typeof codexPlusBackendSettings.codexAppPluginMarketplaceUnlock === "boolean") {
+      settings.pluginMarketplaceUnlock = codexPlusBackendSettings.codexAppPluginMarketplaceUnlock;
+    }
+    if (typeof codexPlusBackendSettings.codexAppForcePluginInstall === "boolean") {
+      settings.forcePluginInstall = codexPlusBackendSettings.codexAppForcePluginInstall;
+    }
+    return settings;
+  }
+
   function codexPlusSettings() {
     const relayPatchDisabled = codexPlusBackendSettings.launchMode === "relay";
     if (codexPlusBackendSettings.enhancementsEnabled === false) {
@@ -900,6 +914,7 @@
     }
     try {
       const settings = { ...defaultCodexPlusSettings(), ...JSON.parse(localStorage.getItem(codexPlusSettingsKey) || "{}") };
+      applyBackendPluginSettings(settings);
       if (relayPatchDisabled) {
         settings.pluginEntryUnlock = false;
         settings.pluginMarketplaceUnlock = false;
@@ -907,7 +922,7 @@
       }
       return settings;
     } catch {
-      const settings = defaultCodexPlusSettings();
+      const settings = applyBackendPluginSettings(defaultCodexPlusSettings());
       if (relayPatchDisabled) {
         settings.pluginEntryUnlock = false;
         settings.pluginMarketplaceUnlock = false;
@@ -987,7 +1002,7 @@
     refreshCodexServiceTierControls();
   }
 
-  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch" };
+  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch", codexAppVersion: "", codexAppPluginEntryUnlock: true, codexAppPluginMarketplaceUnlock: true, codexAppForcePluginInstall: true };
   let codexPlusBackendSettingsLoaded = false;
   let codexServiceTierState = {
     status: "loading",
@@ -1759,12 +1774,16 @@
               <button type="button" class="codex-plus-toggle" data-codex-backend-setting="enhancementsEnabled"><span></span></button>
             </div>
             <div class="codex-plus-row">
-              <div><div class="codex-plus-row-title">插件选项解锁</div><div class="codex-plus-row-description">${codexPlusBackendSettings.launchMode === "relay" ? "兼容增强模式下无需开启；ChatGPT 登录态会保留官方插件入口。" : "完整增强模式会显示并启用插件入口。"}</div></div>
-              <button type="button" class="codex-plus-toggle" data-codex-plus-setting="pluginEntryUnlock" ${codexPlusBackendSettings.launchMode === "relay" ? 'disabled data-relay-unneeded="true"' : ""}><span></span></button>
+              <div><div class="codex-plus-row-title">插件市场解锁</div><div class="codex-plus-row-description">${codexPlusBackendSettings.launchMode === "relay" ? "兼容增强模式下无需开启；ChatGPT 登录态会保留官方插件入口。" : "适合新版 Codex App 的插件市场过滤与请求修正。"}</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppPluginMarketplaceUnlock" ${codexPlusBackendSettings.launchMode === "relay" ? 'disabled data-relay-unneeded="true"' : ""}><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">强制解锁插件入口</div><div class="codex-plus-row-description">${codexPlusBackendSettings.launchMode === "relay" ? "兼容增强模式下无需开启；ChatGPT 登录态会保留官方插件入口。" : "适合旧版 Codex App 的侧栏插件入口解锁；新版会由版本策略自动跳过。"}</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppPluginEntryUnlock" ${codexPlusBackendSettings.launchMode === "relay" ? 'disabled data-relay-unneeded="true"' : ""}><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">特殊插件强制安装</div><div class="codex-plus-row-description">${codexPlusBackendSettings.launchMode === "relay" ? "兼容增强模式下无需开启；不会改插件安装入口。" : "解除 App unavailable / 应用不可用导致的前端安装禁用。"}</div></div>
-              <button type="button" class="codex-plus-toggle" data-codex-plus-setting="forcePluginInstall" ${codexPlusBackendSettings.launchMode === "relay" ? 'disabled data-relay-unneeded="true"' : ""}><span></span></button>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppForcePluginInstall" ${codexPlusBackendSettings.launchMode === "relay" ? 'disabled data-relay-unneeded="true"' : ""}><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">模型白名单解锁</div><div class="codex-plus-row-description">从环境变量和 Codex config.toml 中的中转站 /v1/models 拉取模型，并补进模型选择列表。</div></div>
@@ -1980,6 +1999,7 @@
       }
       const backendToggle = target?.closest("[data-codex-backend-setting]");
       if (backendToggle) {
+        if (backendToggle.disabled) return;
         const key = backendToggle.getAttribute("data-codex-backend-setting");
         setBackendSetting(key, !codexPlusBackendSettings[key]);
         return;
@@ -2148,6 +2168,50 @@
 
   function pluginPatchDisabledInRelayMode() {
     return !codexPlusBackendSettingsLoaded || codexPlusBackendSettings.launchMode === "relay";
+  }
+
+  function parseCodexVersionParts(version) {
+    if (typeof version !== "string") return null;
+    const parts = version.trim().split(/[^\d]+/).filter(Boolean).map((part) => Number.parseInt(part, 10));
+    if (!parts.length || parts.some((part) => !Number.isFinite(part))) return null;
+    return parts;
+  }
+
+  function compareCodexVersions(left, right) {
+    const leftParts = parseCodexVersionParts(left);
+    const rightParts = parseCodexVersionParts(right);
+    if (!leftParts || !rightParts) return null;
+    const length = Math.max(leftParts.length, rightParts.length);
+    for (let index = 0; index < length; index += 1) {
+      const leftPart = leftParts[index] || 0;
+      const rightPart = rightParts[index] || 0;
+      if (leftPart > rightPart) return 1;
+      if (leftPart < rightPart) return -1;
+    }
+    return 0;
+  }
+
+  function codexPluginUnlockStrategy() {
+    const version = codexPlusBackendSettings.codexAppVersion || "";
+    const comparison = compareCodexVersions(version, codexPluginLegacyEntryUnlockBeforeVersion);
+    if (comparison === null) return "unknown";
+    return comparison < 0 ? "legacy-entry" : "modern-marketplace";
+  }
+
+  function logCodexPluginUnlockStrategy(strategy) {
+    const last = window.__codex123PluginUnlockStrategyDiagnostic;
+    const payload = {
+      strategy,
+      codexAppVersion: codexPlusBackendSettings.codexAppVersion || "",
+      cutoffVersion: codexPluginLegacyEntryUnlockBeforeVersion,
+      pluginEntryUnlock: !!codexPlusSettings().pluginEntryUnlock,
+      pluginMarketplaceUnlock: !!codexPlusSettings().pluginMarketplaceUnlock,
+      forcePluginInstall: !!codexPlusSettings().forcePluginInstall,
+    };
+    const signature = JSON.stringify(payload);
+    if (last === signature) return;
+    window.__codex123PluginUnlockStrategyDiagnostic = signature;
+    sendCodexPlusDiagnostic("plugin_unlock_strategy_selected", payload);
   }
 
   function pluginEntryButton() {
@@ -7533,9 +7597,16 @@
       clearPluginPatchArtifacts();
       refreshForcePluginInstallUnlockLoop();
     } else {
-      installPluginBuildFlavorFilterPatch();
-      installPluginMarketplaceRequestPatch();
-      enablePluginEntry();
+      const pluginUnlockStrategy = codexPluginUnlockStrategy();
+      const settings = codexPlusSettings();
+      logCodexPluginUnlockStrategy(pluginUnlockStrategy);
+      if (settings.pluginMarketplaceUnlock && (pluginUnlockStrategy === "modern-marketplace" || pluginUnlockStrategy === "unknown")) {
+        installPluginBuildFlavorFilterPatch();
+        installPluginMarketplaceRequestPatch();
+      }
+      if (settings.pluginEntryUnlock && (pluginUnlockStrategy === "legacy-entry" || pluginUnlockStrategy === "unknown")) {
+        enablePluginEntry();
+      }
       unblockPluginInstallButtons();
       refreshForcePluginInstallUnlockLoop();
     }

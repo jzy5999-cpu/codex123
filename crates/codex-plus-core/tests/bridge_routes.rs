@@ -90,6 +90,69 @@ async fn bridge_routes_cover_all_current_paths() {
 }
 
 #[tokio::test]
+async fn settings_get_includes_runtime_codex_app_version() {
+    let ctx = BridgeContext::new(
+        Arc::new(FakeSettings::with_codex_app_version("26.601.21317")),
+        Arc::new(FakeRuntime::default()),
+        Arc::new(FakeData::default()),
+    );
+
+    let result = handle_bridge_request(ctx, "/settings/get", json!({})).await;
+
+    assert_eq!(result["codexAppVersion"], json!("26.601.21317"));
+    assert_eq!(result["codexAppPluginEntryUnlock"], json!(true));
+    assert_eq!(result["codexAppPluginMarketplaceUnlock"], json!(true));
+    assert_eq!(result["codexAppForcePluginInstall"], json!(true));
+}
+
+#[tokio::test]
+async fn settings_set_does_not_persist_runtime_codex_app_version() {
+    let settings = Arc::new(FakeSettings::with_codex_app_version("26.601.21317"));
+    let ctx = BridgeContext::new(
+        settings.clone(),
+        Arc::new(FakeRuntime::default()),
+        Arc::new(FakeData::default()),
+    );
+
+    let result = handle_bridge_request(
+        ctx,
+        "/settings/set",
+        json!({
+            "codexAppVersion": "1.2.3",
+            "codexAppPluginMarketplaceUnlock": false
+        }),
+    )
+    .await;
+
+    assert_eq!(result["codexAppVersion"], json!("26.601.21317"));
+    assert_eq!(result["codexAppPluginMarketplaceUnlock"], json!(false));
+
+    let persisted = settings.settings.lock().unwrap().clone();
+    let persisted_value = serde_json::to_value(persisted).unwrap();
+    assert!(persisted_value.get("codexAppVersion").is_none());
+}
+
+#[tokio::test]
+async fn bridge_context_core_with_app_dir_exposes_runtime_codex_app_version() {
+    let temp = tempfile::tempdir().unwrap();
+    let app_dir = temp
+        .path()
+        .join("OpenAI.Codex_26.601.21317.0_x64__abc")
+        .join("app");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    std::fs::write(app_dir.join("Codex.exe"), "").unwrap();
+    let ctx = BridgeContext::core_with_data_and_app_dir(
+        Arc::new(FakeRuntime::default()),
+        Arc::new(FakeData::default()),
+        app_dir,
+    );
+
+    let result = handle_bridge_request(ctx, "/settings/get", json!({})).await;
+
+    assert_eq!(result["codexAppVersion"], json!("26.601.21317.0"));
+}
+
+#[tokio::test]
 async fn upstream_worktree_routes_are_dispatched_to_runtime() {
     let ctx = test_context();
 
@@ -782,6 +845,16 @@ fn test_context() -> BridgeContext {
 #[derive(Default)]
 struct FakeSettings {
     settings: Mutex<BackendSettings>,
+    codex_app_version: Mutex<String>,
+}
+
+impl FakeSettings {
+    fn with_codex_app_version(version: &str) -> Self {
+        Self {
+            settings: Mutex::new(BackendSettings::default()),
+            codex_app_version: Mutex::new(version.to_string()),
+        }
+    }
 }
 
 #[async_trait]
@@ -799,6 +872,24 @@ impl BridgeSettingsService for FakeSettings {
         }
         if let Some(value) = payload.get("enhancementsEnabled").and_then(Value::as_bool) {
             raw.insert("enhancementsEnabled".to_string(), json!(value));
+        }
+        if let Some(value) = payload
+            .get("codexAppPluginEntryUnlock")
+            .and_then(Value::as_bool)
+        {
+            raw.insert("codexAppPluginEntryUnlock".to_string(), json!(value));
+        }
+        if let Some(value) = payload
+            .get("codexAppPluginMarketplaceUnlock")
+            .and_then(Value::as_bool)
+        {
+            raw.insert("codexAppPluginMarketplaceUnlock".to_string(), json!(value));
+        }
+        if let Some(value) = payload
+            .get("codexAppForcePluginInstall")
+            .and_then(Value::as_bool)
+        {
+            raw.insert("codexAppForcePluginInstall".to_string(), json!(value));
         }
         if let Some(value) = payload.get("launchMode").and_then(Value::as_str) {
             raw.insert("launchMode".to_string(), json!(value));
@@ -822,6 +913,10 @@ impl BridgeSettingsService for FakeSettings {
         let updated: BackendSettings = serde_json::from_value(Value::Object(raw.clone())).unwrap();
         *self.settings.lock().unwrap() = updated.clone();
         Ok(updated)
+    }
+
+    async fn codex_app_version(&self) -> anyhow::Result<String> {
+        Ok(self.codex_app_version.lock().unwrap().clone())
     }
 }
 
@@ -1095,7 +1190,7 @@ impl LaunchHooks for ContextHooks {
         Ok(BackendSettings::default())
     }
 
-    async fn run_provider_sync(&self) -> anyhow::Result<()> {
+    async fn run_provider_sync(&self, _settings: &BackendSettings) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -1116,7 +1211,11 @@ impl LaunchHooks for ContextHooks {
         })
     }
 
-    async fn bridge_context(&self, debug_port: u16) -> anyhow::Result<Option<BridgeContext>> {
+    async fn bridge_context(
+        &self,
+        debug_port: u16,
+        _app_dir: &std::path::Path,
+    ) -> anyhow::Result<Option<BridgeContext>> {
         self.event(format!("bridge-context:{debug_port}"));
         Ok(Some(test_context()))
     }

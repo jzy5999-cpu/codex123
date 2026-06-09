@@ -5,5 +5,8 @@ pub mod storage;
 
 pub use backup::BackupStore;
 pub use markdown::MarkdownExportService;
-pub use provider_sync::{ProviderSyncResult, ProviderSyncStatus, run_provider_sync};
+pub use provider_sync::{
+    ProviderSyncResult, ProviderSyncStatus, current_provider, run_provider_sync,
+    run_provider_sync_with_target,
+};
 pub use storage::SQLiteStorageAdapter;

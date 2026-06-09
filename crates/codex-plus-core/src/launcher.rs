@@ -124,7 +124,7 @@ pub trait LaunchHooks: Send + Sync {
     fn select_debug_port(&self, requested: u16) -> u16;
     fn select_helper_port(&self, requested: u16) -> u16;
     async fn load_settings(&self) -> anyhow::Result<BackendSettings>;
-    async fn run_provider_sync(&self) -> anyhow::Result<()>;
+    async fn run_provider_sync(&self, settings: &BackendSettings) -> anyhow::Result<()>;
     async fn apply_active_relay_profile(&self, _settings: &BackendSettings) -> anyhow::Result<()> {
         Ok(())
     }
@@ -138,6 +138,7 @@ pub trait LaunchHooks: Send + Sync {
     async fn bridge_context(
         &self,
         _debug_port: u16,
+        _app_dir: &Path,
     ) -> anyhow::Result<Option<crate::routes::BridgeContext>> {
         Ok(None)
     }
@@ -156,10 +157,10 @@ pub trait LaunchHooks: Send + Sync {
     async fn wait_before_injection_retry(&self) {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
-    async fn ensure_injection(&self, debug_port: u16, helper_port: u16) -> bool {
+    async fn ensure_injection(&self, debug_port: u16, helper_port: u16, app_dir: &Path) -> bool {
         let attempts = self.injection_retry_attempts().max(1);
         for attempt in 1..=attempts {
-            let result = match self.bridge_context(debug_port).await {
+            let result = match self.bridge_context(debug_port, app_dir).await {
                 Ok(Some(ctx)) => self.inject_bridge(debug_port, helper_port, ctx).await,
                 Ok(None) => self.inject(debug_port, helper_port).await,
                 Err(error) => Err(error),
@@ -237,7 +238,7 @@ where
 
     let result: anyhow::Result<LaunchHandle> = async {
         if settings.provider_sync_enabled {
-            hooks.run_provider_sync().await?;
+            hooks.run_provider_sync(&settings).await?;
         }
         let protocol_proxy_enabled = relay_protocol_proxy_enabled(&settings);
         if protocol_proxy_enabled {
@@ -256,7 +257,9 @@ where
 
         let mut injection_degraded = false;
         if settings.enhancements_enabled {
-            let injection_ready = hooks.ensure_injection(debug_port, helper_port).await;
+            let injection_ready = hooks
+                .ensure_injection(debug_port, helper_port, &app_dir)
+                .await;
             if injection_ready {
                 keep_launched_on_error = false;
                 hooks.start_bridge_watchdog(debug_port, helper_port).await?;
@@ -381,7 +384,7 @@ impl LaunchHooks for DefaultLaunchHooks {
         Ok(settings)
     }
 
-    async fn run_provider_sync(&self) -> anyhow::Result<()> {
+    async fn run_provider_sync(&self, _settings: &BackendSettings) -> anyhow::Result<()> {
         anyhow::bail!("provider sync requires launcher hooks with codex-plus-data integration")
     }
 

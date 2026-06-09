@@ -54,6 +54,19 @@ pub struct SettingsPayload {
     pub settings: BackendSettings,
     pub settings_path: String,
     pub user_scripts: Value,
+    pub provider_sync: ProviderSyncPayload,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSyncPayload {
+    pub current_provider: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSyncRequest {
+    pub target_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -432,6 +445,7 @@ pub fn save_settings(settings: BackendSettings) -> CommandResult<SettingsPayload
                     .to_string_lossy()
                     .to_string(),
                 user_scripts: user_script_inventory(),
+                provider_sync: provider_sync_payload(),
             };
             return failed(&format!("写回 cc-switch 供应商配置失败：{error}"), payload);
         }
@@ -448,6 +462,7 @@ pub fn save_settings(settings: BackendSettings) -> CommandResult<SettingsPayload
                         .to_string_lossy()
                         .to_string(),
                     user_scripts: user_script_inventory(),
+                    provider_sync: provider_sync_payload(),
                 };
                 return failed(&format!("同步 cc-switch 当前供应商失败：{error}"), payload);
             }
@@ -470,6 +485,7 @@ pub fn save_settings(settings: BackendSettings) -> CommandResult<SettingsPayload
                     .to_string_lossy()
                     .to_string(),
                 user_scripts: user_script_inventory(),
+                provider_sync: provider_sync_payload(),
             },
         ),
     }
@@ -766,10 +782,16 @@ fn ensure_text_newline(value: &str) -> String {
 }
 
 #[tauri::command]
-pub async fn sync_providers_now() -> CommandResult<Value> {
-    let result = tauri::async_runtime::spawn_blocking(|| codex_plus_data::run_provider_sync(None))
-        .await
-        .map_err(|error| anyhow::anyhow!("provider sync task failed: {error}"));
+pub async fn sync_providers_now(request: Option<ProviderSyncRequest>) -> CommandResult<Value> {
+    let target_provider = request
+        .and_then(|request| request.target_provider)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        codex_plus_data::run_provider_sync_with_target(None, target_provider.as_deref())
+    })
+    .await
+    .map_err(|error| anyhow::anyhow!("provider sync task failed: {error}"));
     match result {
         Ok(sync) => ok(
             &format!(
@@ -1255,6 +1277,7 @@ pub fn reset_settings() -> CommandResult<SettingsPayload> {
                     .to_string_lossy()
                     .to_string(),
                 user_scripts: user_script_inventory(),
+                provider_sync: provider_sync_payload(),
             },
         ),
     }
@@ -2117,6 +2140,7 @@ fn settings_payload_value() -> Result<SettingsPayload, (anyhow::Error, SettingsP
             settings: settings_with_live_ccs_profiles(settings),
             settings_path,
             user_scripts: user_script_inventory(),
+            provider_sync: provider_sync_payload(),
         }),
         Err(error) => Err((
             error,
@@ -2124,6 +2148,7 @@ fn settings_payload_value() -> Result<SettingsPayload, (anyhow::Error, SettingsP
                 settings: BackendSettings::default(),
                 settings_path,
                 user_scripts: user_script_inventory(),
+                provider_sync: provider_sync_payload(),
             },
         )),
     }
@@ -2138,6 +2163,13 @@ fn fallback_settings_payload() -> SettingsPayload {
             .to_string_lossy()
             .to_string(),
         user_scripts: user_script_inventory(),
+        provider_sync: provider_sync_payload(),
+    }
+}
+
+fn provider_sync_payload() -> ProviderSyncPayload {
+    ProviderSyncPayload {
+        current_provider: codex_plus_data::current_provider(None),
     }
 }
 
@@ -2336,9 +2368,14 @@ fn redacted_settings_report(settings: &BackendSettings) -> Value {
         "codexAppPath": settings.codex_app_path,
         "codexExtraArgs": settings.codex_extra_args,
         "providerSyncEnabled": settings.provider_sync_enabled,
+        "providerSyncTargetMode": settings.provider_sync_target_mode,
+        "providerSyncTargetProvider": settings.provider_sync_target_provider,
         "relayProfilesEnabled": settings.relay_profiles_enabled,
         "ccsLinkEnabled": settings.ccs_link_enabled,
         "enhancementsEnabled": settings.enhancements_enabled,
+        "codexAppPluginEntryUnlock": settings.codex_app_plugin_entry_unlock,
+        "codexAppPluginMarketplaceUnlock": settings.codex_app_plugin_marketplace_unlock,
+        "codexAppForcePluginInstall": settings.codex_app_force_plugin_install,
         "codexGoalsEnabled": settings.codex_goals_enabled,
         "launchMode": settings.launch_mode,
         "relayBaseUrl": settings.relay_base_url,

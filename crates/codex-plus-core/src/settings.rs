@@ -130,6 +130,14 @@ pub enum RelayMode {
     PureApi,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ProviderSyncTargetMode {
+    #[default]
+    Auto,
+    Custom,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BackendSettings {
     #[serde(rename = "codexAppPath", default)]
@@ -138,12 +146,22 @@ pub struct BackendSettings {
     pub codex_extra_args: Vec<String>,
     #[serde(rename = "providerSyncEnabled", default)]
     pub provider_sync_enabled: bool,
+    #[serde(rename = "providerSyncTargetMode", default)]
+    pub provider_sync_target_mode: ProviderSyncTargetMode,
+    #[serde(rename = "providerSyncTargetProvider", default)]
+    pub provider_sync_target_provider: String,
     #[serde(rename = "relayProfilesEnabled", default = "default_true")]
     pub relay_profiles_enabled: bool,
     #[serde(rename = "ccsLinkEnabled", default)]
     pub ccs_link_enabled: bool,
     #[serde(rename = "enhancementsEnabled", default = "default_true")]
     pub enhancements_enabled: bool,
+    #[serde(rename = "codexAppPluginEntryUnlock", default = "default_true")]
+    pub codex_app_plugin_entry_unlock: bool,
+    #[serde(rename = "codexAppPluginMarketplaceUnlock", default = "default_true")]
+    pub codex_app_plugin_marketplace_unlock: bool,
+    #[serde(rename = "codexAppForcePluginInstall", default = "default_true")]
+    pub codex_app_force_plugin_install: bool,
     #[serde(rename = "codexGoalsEnabled", default)]
     pub codex_goals_enabled: bool,
     #[serde(rename = "launchMode", default)]
@@ -182,9 +200,14 @@ impl Default for BackendSettings {
             codex_app_path: String::new(),
             codex_extra_args: Vec::new(),
             provider_sync_enabled: false,
+            provider_sync_target_mode: ProviderSyncTargetMode::Auto,
+            provider_sync_target_provider: String::new(),
             relay_profiles_enabled: true,
             ccs_link_enabled: false,
             enhancements_enabled: true,
+            codex_app_plugin_entry_unlock: true,
+            codex_app_plugin_marketplace_unlock: true,
+            codex_app_force_plugin_install: true,
             codex_goals_enabled: false,
             launch_mode: LaunchMode::Patch,
             relay_base_url: default_relay_base_url(),
@@ -452,6 +475,23 @@ fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<Stri
     if let Some(value) = source.get("providerSyncEnabled").and_then(Value::as_bool) {
         target.insert("providerSyncEnabled".to_string(), Value::Bool(value));
     }
+    if let Some(value) = source.get("providerSyncTargetMode").and_then(Value::as_str) {
+        if matches!(value, "auto" | "custom") {
+            target.insert(
+                "providerSyncTargetMode".to_string(),
+                Value::String(value.to_string()),
+            );
+        }
+    }
+    if let Some(value) = source
+        .get("providerSyncTargetProvider")
+        .and_then(Value::as_str)
+    {
+        target.insert(
+            "providerSyncTargetProvider".to_string(),
+            Value::String(value.to_string()),
+        );
+    }
     if let Some(value) = source.get("relayProfilesEnabled").and_then(Value::as_bool) {
         target.insert("relayProfilesEnabled".to_string(), Value::Bool(value));
     }
@@ -460,6 +500,27 @@ fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<Stri
     }
     if let Some(value) = source.get("enhancementsEnabled").and_then(Value::as_bool) {
         target.insert("enhancementsEnabled".to_string(), Value::Bool(value));
+    }
+    if let Some(value) = source
+        .get("codexAppPluginEntryUnlock")
+        .and_then(Value::as_bool)
+    {
+        target.insert("codexAppPluginEntryUnlock".to_string(), Value::Bool(value));
+    }
+    if let Some(value) = source
+        .get("codexAppPluginMarketplaceUnlock")
+        .and_then(Value::as_bool)
+    {
+        target.insert(
+            "codexAppPluginMarketplaceUnlock".to_string(),
+            Value::Bool(value),
+        );
+    }
+    if let Some(value) = source
+        .get("codexAppForcePluginInstall")
+        .and_then(Value::as_bool)
+    {
+        target.insert("codexAppForcePluginInstall".to_string(), Value::Bool(value));
     }
     if let Some(value) = source.get("codexGoalsEnabled").and_then(Value::as_bool) {
         target.insert("codexGoalsEnabled".to_string(), Value::Bool(value));

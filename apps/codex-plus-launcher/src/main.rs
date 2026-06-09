@@ -127,7 +127,7 @@ async fn activate_existing_codex_app(options: &LaunchOptions) -> anyhow::Result<
     }
     let injection_ready = if settings.enhancements_enabled {
         hooks
-            .ensure_injection(options.debug_port, options.helper_port)
+            .ensure_injection(options.debug_port, options.helper_port, &app_dir)
             .await
     } else {
         false
@@ -249,10 +249,17 @@ impl LaunchHooks for LauncherHooks {
         self.core.load_settings().await
     }
 
-    async fn run_provider_sync(&self) -> anyhow::Result<()> {
-        let _ = tokio::task::spawn_blocking(|| codex_plus_data::run_provider_sync(None))
-            .await
-            .map_err(|error| anyhow::anyhow!("provider sync task failed: {error}"))?;
+    async fn run_provider_sync(
+        &self,
+        settings: &codex_plus_core::settings::BackendSettings,
+    ) -> anyhow::Result<()> {
+        let target_provider =
+            provider_sync_target_provider(settings).map(std::string::ToString::to_string);
+        let _ = tokio::task::spawn_blocking(move || {
+            codex_plus_data::run_provider_sync_with_target(None, target_provider.as_deref())
+        })
+        .await
+        .map_err(|error| anyhow::anyhow!("provider sync task failed: {error}"))?;
         Ok(())
     }
 
@@ -278,11 +285,16 @@ impl LaunchHooks for LauncherHooks {
             .await
     }
 
-    async fn bridge_context(&self, debug_port: u16) -> anyhow::Result<Option<BridgeContext>> {
+    async fn bridge_context(
+        &self,
+        debug_port: u16,
+        app_dir: &Path,
+    ) -> anyhow::Result<Option<BridgeContext>> {
         self.runtime.set_debug_port(debug_port);
-        Ok(Some(BridgeContext::core_with_data(
+        Ok(Some(BridgeContext::core_with_data_and_app_dir(
             self.runtime.clone(),
             self.data.clone(),
+            app_dir.to_path_buf(),
         )))
     }
 
@@ -317,6 +329,18 @@ impl LaunchHooks for LauncherHooks {
     async fn terminate_codex(&self, launch: &codex_plus_core::launcher::CodexLaunch) {
         self.core.terminate_codex(launch).await;
     }
+}
+
+fn provider_sync_target_provider(
+    settings: &codex_plus_core::settings::BackendSettings,
+) -> Option<&str> {
+    if settings.provider_sync_target_mode
+        != codex_plus_core::settings::ProviderSyncTargetMode::Custom
+    {
+        return None;
+    }
+    let target = settings.provider_sync_target_provider.trim();
+    (!target.is_empty()).then_some(target)
 }
 
 #[derive(Debug, Clone)]
@@ -742,7 +766,7 @@ mod tests {
         ));
         assert!(source.contains("hooks.start_helper(options.helper_port).await?"));
         assert!(source.contains(
-            "hooks\n            .ensure_injection(options.debug_port, options.helper_port)"
+            "hooks\n            .ensure_injection(options.debug_port, options.helper_port, &app_dir)"
         ));
         assert!(source.contains("injection_ready"));
     }

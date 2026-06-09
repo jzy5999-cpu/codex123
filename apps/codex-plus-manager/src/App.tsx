@@ -95,10 +95,16 @@ type OverviewResult = CommandResult<{
 type BackendSettings = {
   codexAppPath: string;
   codexExtraArgs: string[];
+  codexAppVersion: string;
   providerSyncEnabled: boolean;
+  providerSyncTargetMode: ProviderSyncTargetMode;
+  providerSyncTargetProvider: string;
   relayProfilesEnabled: boolean;
   ccsLinkEnabled: boolean;
   enhancementsEnabled: boolean;
+  codexAppPluginEntryUnlock: boolean;
+  codexAppPluginMarketplaceUnlock: boolean;
+  codexAppForcePluginInstall: boolean;
   codexGoalsEnabled: boolean;
   launchMode: LaunchMode;
   relayBaseUrl: string;
@@ -115,6 +121,7 @@ type BackendSettings = {
 };
 
 type LaunchMode = "patch" | "relay";
+type ProviderSyncTargetMode = "auto" | "custom";
 
 type RelayProfile = {
   id: string;
@@ -194,6 +201,9 @@ type SettingsResult = CommandResult<{
   settings: BackendSettings;
   settings_path: string;
   user_scripts: UserScriptInventory;
+  provider_sync: {
+    currentProvider: string;
+  };
 }>;
 
 type RelayResult = CommandResult<{
@@ -420,10 +430,16 @@ const routes: Array<{ id: Route; label: string; icon: LucideIcon }> = [
 const defaultSettings: BackendSettings = {
   codexAppPath: "",
   codexExtraArgs: [],
+  codexAppVersion: "",
   providerSyncEnabled: false,
+  providerSyncTargetMode: "auto",
+  providerSyncTargetProvider: "",
   relayProfilesEnabled: true,
   ccsLinkEnabled: false,
   enhancementsEnabled: true,
+  codexAppPluginEntryUnlock: true,
+  codexAppPluginMarketplaceUnlock: true,
+  codexAppForcePluginInstall: true,
   codexGoalsEnabled: false,
   launchMode: "patch",
   relayBaseUrl: "",
@@ -913,7 +929,15 @@ export function App() {
   };
 
   const syncProvidersNow = async () => {
-    const result = await run(() => call<CommandResult<Record<string, never>>>("sync_providers_now"));
+    const targetProvider =
+      settingsForm.providerSyncTargetMode === "custom"
+        ? settingsForm.providerSyncTargetProvider.trim()
+        : "";
+    const result = await run(() =>
+      call<CommandResult<Record<string, never>>>("sync_providers_now", {
+        request: targetProvider ? { targetProvider } : null,
+      }),
+    );
     if (result) {
       showNotice("历史会话修复", result.message, result.status);
     }
@@ -1876,6 +1900,12 @@ function EnhanceScreen({
   onFormChange: (value: BackendSettings) => void;
   actions: Actions;
 }) {
+  const pluginControlsEnabled = form.enhancementsEnabled && form.launchMode === "patch";
+  const updatePluginSetting = (
+    key: "codexAppPluginEntryUnlock" | "codexAppPluginMarketplaceUnlock" | "codexAppForcePluginInstall",
+    value: boolean,
+  ) => onFormChange({ ...form, [key]: value });
+
   return (
     <>
       <Panel>
@@ -1899,13 +1929,56 @@ function EnhanceScreen({
               <span>当前为兼容增强模式，插件入口解锁和特殊插件强制安装不会启用；其他页面功能仍可用。</span>
             </div>
           ) : null}
+          <div className="hint-line">
+            <Info className="h-4 w-4" />
+            <span>检测到的 Codex App 版本：{form.codexAppVersion || "未检测到"}。codex123 会按版本选择插件入口或插件市场解锁策略。</span>
+          </div>
+          <div className="feature-list">
+            <label className="switch-row">
+              <input
+                checked={form.codexAppPluginMarketplaceUnlock}
+                disabled={!pluginControlsEnabled}
+                onChange={(event) => updatePluginSetting("codexAppPluginMarketplaceUnlock", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>插件市场解锁</strong>
+                <small>适合新版 Codex App 的插件市场过滤与请求修正；仅完整增强模式启用。</small>
+              </span>
+            </label>
+            <label className="switch-row">
+              <input
+                checked={form.codexAppPluginEntryUnlock}
+                disabled={!pluginControlsEnabled}
+                onChange={(event) => updatePluginSetting("codexAppPluginEntryUnlock", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>强制解锁插件入口</strong>
+                <small>适合旧版 Codex App 的侧栏插件入口解锁；新版会由版本策略自动跳过。</small>
+              </span>
+            </label>
+            <label className="switch-row">
+              <input
+                checked={form.codexAppForcePluginInstall}
+                disabled={!pluginControlsEnabled}
+                onChange={(event) => updatePluginSetting("codexAppForcePluginInstall", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>特殊插件强制安装</strong>
+                <small>解除 App unavailable / 应用不可用导致的前端安装禁用；仅完整增强模式启用。</small>
+              </span>
+            </label>
+          </div>
           <div className="feature-list">
             <FeatureItem title="会话删除" detail="在会话列表悬停显示删除按钮，并支持撤销。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Markdown 导出" detail="按本地 rollout 导出带时间戳的 Markdown。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="项目移动" detail="把会话移动到普通对话或其他本地项目。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Timeline" detail="在对话右侧显示用户提问时间线。" enabled={form.enhancementsEnabled} />
-            <FeatureItem title="插件入口解锁" detail="仅完整增强模式启用。" enabled={form.enhancementsEnabled && form.launchMode === "patch"} />
-            <FeatureItem title="特殊插件强制安装" detail="仅完整增强模式启用。" enabled={form.enhancementsEnabled && form.launchMode === "patch"} />
+            <FeatureItem title="插件入口解锁" detail="按 Codex App 版本自动选择旧版入口策略。" enabled={pluginControlsEnabled && form.codexAppPluginEntryUnlock} />
+            <FeatureItem title="插件市场解锁" detail="按 Codex App 版本自动选择新版市场策略。" enabled={pluginControlsEnabled && form.codexAppPluginMarketplaceUnlock} />
+            <FeatureItem title="特殊插件强制安装" detail="仅完整增强模式启用。" enabled={pluginControlsEnabled && form.codexAppForcePluginInstall} />
           </div>
           <Toolbar>
             <Button onClick={() => void actions.saveSettings()}>保存增强设置</Button>
@@ -2159,6 +2232,19 @@ function ProviderSyncScreen({
   onFormChange: (value: BackendSettings) => void;
   actions: Actions;
 }) {
+  const currentProvider = settings?.provider_sync?.currentProvider || "openai";
+  const selectedTarget =
+    form.providerSyncTargetMode === "custom"
+      ? form.providerSyncTargetProvider.trim() || "未填写"
+      : currentProvider;
+  const targetOptions = providerSyncTargetOptions(form, currentProvider);
+  const updateTargetMode = (providerSyncTargetMode: ProviderSyncTargetMode) => {
+    onFormChange({ ...form, providerSyncTargetMode });
+  };
+  const updateTargetProvider = (providerSyncTargetProvider: string) => {
+    onFormChange({ ...form, providerSyncTargetProvider });
+  };
+
   return (
     <>
       <Panel>
@@ -2177,8 +2263,42 @@ function ProviderSyncScreen({
           </label>
           <div className="relay-grid compact">
             <Metric label="自动修复" value={form.providerSyncEnabled ? "启动前执行" : "关闭"} />
+            <Metric label="自动目标" value={currentProvider} />
+            <Metric label="本次目标" value={selectedTarget} />
             <Metric label="设置文件" value={settings?.settings_path ?? "未加载"} />
             <Metric label="页面增强" value={form.launchMode === "relay" ? "兼容模式" : "完整模式"} />
+          </div>
+          <div className="relay-fields">
+            <Field label="目标模式">
+              <select
+                className="field-select"
+                value={form.providerSyncTargetMode}
+                onChange={(event) => updateTargetMode(event.currentTarget.value as ProviderSyncTargetMode)}
+              >
+                <option value="auto">自动：使用当前 config.toml</option>
+                <option value="custom">手动：指定 provider id</option>
+              </select>
+            </Field>
+            <Field label="目标 provider">
+              <Input
+                disabled={form.providerSyncTargetMode !== "custom"}
+                list="provider-sync-target-options"
+                onChange={(event) => updateTargetProvider(event.currentTarget.value)}
+                placeholder={currentProvider}
+                value={form.providerSyncTargetProvider}
+              />
+              <datalist id="provider-sync-target-options">
+                {targetOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </Field>
+          </div>
+          <div className="hint-line">
+            <Info className="h-4 w-4" />
+            <span>
+              执行修复时会把历史会话归属同步到“本次目标”，并在 `~/.codex/backups_state/provider-sync` 创建备份。
+            </span>
           </div>
           <Toolbar>
             <Button onClick={() => void actions.saveSettings()}>保存自动修复设置</Button>
@@ -2196,8 +2316,8 @@ function ProviderSyncScreen({
             items={[
               "自动修复只在 codex123 启动 Codex 前运行，不会常驻监控或反复改写。",
               "需要马上整理旧对话时，可以点击“立刻修复历史会话”。",
-              "它不控制页面功能，也不影响 API URL 或 Key。",
-              "切回官方时历史会话会整理为 openai；切到 API 时会整理为 custom。",
+              "默认目标来自当前 config.toml 的 model_provider；也可以手动指定 openai、codex123 或其他 provider id。",
+              "它不控制页面功能，也不影响 API URL 或 Key；只整理历史会话的归属标记和索引。",
             ]}
           />
         </CardContent>
@@ -4252,6 +4372,8 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
   return syncLegacyRelayFields({
     ...defaultSettings,
     ...settings,
+    providerSyncTargetMode: settings.providerSyncTargetMode === "custom" ? "custom" : "auto",
+    providerSyncTargetProvider: settings.providerSyncTargetProvider || "",
     relayProfilesEnabled: settings.relayProfilesEnabled !== false,
     ccsLinkEnabled: settings.ccsLinkEnabled === true,
     relayCommonConfigContents,
@@ -4259,6 +4381,21 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
     relayProfiles: profiles,
     activeRelayId,
   });
+}
+
+function providerSyncTargetOptions(settings: BackendSettings, currentProvider: string): string[] {
+  const options = new Set<string>();
+  [currentProvider, "openai", "codex123", settings.providerSyncTargetProvider].forEach((value) => {
+    const provider = value.trim();
+    if (provider) options.add(provider);
+  });
+  settings.relayProfiles.forEach((profile) => {
+    const provider = rootTomlStringValue(profile.configContents, "model_provider");
+    if (provider.trim()) options.add(provider.trim());
+    if (profile.relayMode === "remoteRelay") options.add("codex123");
+    if (profile.relayMode === "official") options.add("openai");
+  });
+  return Array.from(options).sort((a, b) => a.localeCompare(b));
 }
 
 function codexExtraArgsToInput(args: string[] | undefined) {
