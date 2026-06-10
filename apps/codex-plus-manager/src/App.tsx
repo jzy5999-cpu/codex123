@@ -2082,19 +2082,19 @@ function PetsScreen({
   return (
     <>
       <Panel>
-        <CardHead title="Petdex 宠物导入" detail="从 Petdex 安装 Codex-compatible pet packages 到用户目录" />
+        <CardHead title="宠物导入" detail="从 codex123 宠物源安装 Codex-compatible pet packages 到用户目录" />
         <CardContent>
           <div className="metric-list">
-            <Metric label="市场状态" value={petdex?.message ?? "尚未刷新"} />
-            <Metric label="远程宠物" value={`${pets.length} 个`} />
-            <Metric label="市场已安装" value={`${installedCount} 个`} />
+            <Metric label="宠物源状态" value={petdex?.message ?? "尚未刷新"} />
+            <Metric label="源内宠物" value={`${pets.length} 个`} />
+            <Metric label="源内已安装" value={`${installedCount} 个`} />
             <Metric label="可更新" value={`${updateCount} 个`} />
             <Metric label="本地目录" value={petsDir} />
           </div>
           <Toolbar>
             <Button onClick={() => void actions.refreshPetdex()}>
               <RefreshCw className="h-4 w-4" />
-              刷新 Petdex
+              刷新宠物源
             </Button>
             <Button onClick={() => void actions.openPetsDirectory()} variant="secondary">
               <FolderOpen className="h-4 w-4" />
@@ -2123,7 +2123,7 @@ function PetsScreen({
           </div>
           <div className="hint-line">
             <Info className="h-4 w-4" />
-            <span>综合热度由已安装、可更新、作者、描述、主页和标签完整度计算，不代表 Petdex 官方下载量。</span>
+            <span>综合热度由已安装、可更新、作者、描述、主页和标签完整度计算，不代表真实下载量或点赞量。</span>
           </div>
           {filteredPets.length ? (
             <>
@@ -2141,7 +2141,7 @@ function PetsScreen({
             </>
           ) : (
             <div className="empty">
-              {petdex?.status === "failed" ? petdex.message : "点击刷新 Petdex 加载宠物列表。"}
+              {petdex?.status === "failed" ? petdex.message : "点击刷新宠物源加载宠物列表。"}
             </div>
           )}
         </CardContent>
@@ -3717,7 +3717,7 @@ function routeSubtitle(route: Route) {
     context: "独立管理 MCP、Skills、Plugins",
     enhance: "会话删除、导出、项目移动和脚本能力",
     userScripts: "内置和用户自定义脚本清单",
-    pets: "从 Petdex 导入 Codex 宠物包",
+    pets: "从 codex123 宠物源导入 Codex 宠物包",
     providerSync: "切换模式后让旧对话重新可见",
     maintenance: "入口安装、修复、Watcher 与手动启动",
     about: "版本信息、项目链接、GitHub Release 更新、日志与诊断",

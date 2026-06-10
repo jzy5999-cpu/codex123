@@ -39,7 +39,7 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 - **远控兼容中转模式**：中转 Key 写入 provider 配置，不写入 `auth.json` 的 `OPENAI_API_KEY`。
 - **远控前提诊断**：管理工具检查 ChatGPT 登录态、`auth_mode`、provider、`base_url`、`wire_api`、`requires_openai_auth` 和 bearer token。
 - **DeepSeek / Chat Completions 兼容**：本地代理把 Codex Responses 请求转换为 Chat Completions，再转换回 Responses 形态。
-- **Petdex 宠物导入**：从 Petdex 拉取 Codex-compatible pet packages，一键安装到 `~/.codex/pets`。
+- **codex123 宠物源**：内置 10 个基于开源 Noto Emoji 资源生成的 Codex-compatible pet packages，一键安装到 `~/.codex/pets`。
 - **外部增强注入**：继续使用 launcher + Chromium DevTools Protocol，不直接修改 Codex App。
 - **macOS 可安装 App**：提供 Apple Silicon DMG，包含静默入口和管理工具入口。
 
@@ -124,9 +124,9 @@ Codex 当前主要按 OpenAI Responses API 形态请求模型，而 DeepSeek 官
 
 当前优化包括 DeepSeek reasoning effort 映射、`reasoning_content` 流式返回转换、assistant tool-call 历史的 `reasoning_content` 兜底，以及基础工具调用历史转换。该能力提高 DeepSeek 长会话和工具调用稳定性，但不保证所有 DeepSeek 中转站 100% 可用；中转站仍需要兼容 OpenAI Chat Completions、流式输出和工具调用。
 
-## Petdex 宠物导入
+## codex123 宠物导入
 
-`codex123` 管理工具提供 Petdex MVP，用于把 Codex-compatible pet packages 安装到用户数据目录：
+`codex123` 管理工具提供自带宠物源，用于把 Codex-compatible pet packages 安装到用户数据目录：
 
 ```text
 ~/.codex/pets/<slug>/
@@ -138,13 +138,15 @@ Codex 当前主要按 OpenAI Responses API 形态请求模型，而 DeepSeek 官
 
 1. 打开 `codex123 管理工具`。
 2. 进入“宠物导入”。
-3. 点击“刷新 Petdex”。
+3. 点击“刷新宠物源”。
 4. 默认按“综合热度”查看、搜索并安装需要的宠物。
 5. 打开 Codex 后，在 `Settings -> Appearance -> Pets` 中手动选择。
 
 该功能只写入 `~/.codex/pets`，不修改 Codex App 原始安装目录，也不会自动改 Codex 选中宠物的内部状态。安装前会校验 HTTPS、资源域名、slug、JSON、PNG/WEBP、文件大小，并通过临时目录完成原子安装。安装时会写入 `codex123-installed.json` 元数据，用于后续判断是否可更新；本地已安装列表支持删除合法 slug 目录。
 
-宠物市场当前使用 `codex123` 本地“综合热度”排序，便于优先挑选更完整、已安装或可更新的宠物。这个热度分不是 Petdex 官方下载量、点赞量或浏览量，只是本地可解释的推荐顺序。
+默认宠物源为 `codex123 Curated Pets`，当前包含 10 个基于 [Google Noto Emoji](https://github.com/googlefonts/noto-emoji) 图片资源生成的宠物包：猫、狗、狐狸、熊猫、兔子、企鹅、猫头鹰、仓鼠、独角兽和龙。Noto Emoji README 说明其工具和大多数图片资源采用 Apache License 2.0；`codex123` 会在 `assets/pets/ATTRIBUTION.md` 和每个宠物目录的 README 中保留来源、许可证和生成说明。
+
+宠物市场当前使用 `codex123` 本地“综合热度”排序，便于优先挑选更完整、已安装或可更新的宠物。这个热度分不是真实下载量、点赞量或浏览量，只是本地可解释的推荐顺序。Petdex 官方站点不再作为默认来源；如果后续重新接入第三方宠物源，必须确认素材许可证允许再分发。
 
 ## 快速使用
 

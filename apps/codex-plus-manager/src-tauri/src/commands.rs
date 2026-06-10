@@ -843,11 +843,11 @@ pub async fn refresh_script_market() -> CommandResult<ScriptMarketPayload> {
 pub async fn refresh_petdex() -> CommandResult<PetdexPayload> {
     match codex_plus_core::petdex::fetch_manifest().await {
         Ok(manifest) => ok(
-            &format!("Petdex 已刷新：{} 个宠物。", manifest.pets.len()),
+            &format!("宠物源已刷新：{} 个宠物。", manifest.pets.len()),
             PetdexPayload { manifest },
         ),
         Err(error) => failed(
-            &format!("Petdex 刷新失败：{error}"),
+            &format!("宠物源刷新失败：{error}"),
             PetdexPayload {
                 manifest: fallback_petdex_manifest(),
             },
@@ -888,7 +888,7 @@ pub async fn install_petdex_pet(request: PetdexInstallRequest) -> CommandResult<
                 PetInstallPayload { install, manifest },
             ),
             Err(error) => {
-                let message = format!("宠物已安装，但刷新 Petdex 状态失败：{error}");
+                let message = format!("宠物已安装，但刷新宠物源状态失败：{error}");
                 ok(
                     &message,
                     PetInstallPayload {
@@ -923,7 +923,7 @@ pub async fn delete_installed_pet(slug: String) -> CommandResult<PetDeletePayloa
                 PetDeletePayload { deleted, manifest },
             ),
             Err(error) => ok(
-                &format!("宠物已删除，但刷新 Petdex 状态失败：{error}"),
+                &format!("宠物已删除，但刷新宠物源状态失败：{error}"),
                 PetDeletePayload {
                     deleted,
                     manifest: fallback_petdex_manifest(),
@@ -2116,7 +2116,7 @@ fn fallback_petdex_manifest() -> PetdexManifest {
     let pets_dir = codex_plus_core::petdex::default_pets_dir();
     let installed = codex_plus_core::petdex::list_installed_pets().unwrap_or_default();
     PetdexManifest {
-        manifest_url: "https://petdex.crafter.run/api/manifest".to_string(),
+        manifest_url: codex_plus_core::petdex::DEFAULT_PET_MANIFEST_URL.to_string(),
         pets_dir: pets_dir.to_string_lossy().to_string(),
         pets: Vec::new(),
         installed,

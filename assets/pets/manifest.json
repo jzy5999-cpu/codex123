@@ -1,0 +1,184 @@
+{
+  "pets": [
+    {
+      "slug": "noto-cat",
+      "displayName": "Noto Cat",
+      "description": "Open-source Codex-compatible cat pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "cat",
+        "classic",
+        "cute",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f431.png"
+    },
+    {
+      "slug": "noto-dog",
+      "displayName": "Noto Dog",
+      "description": "Open-source Codex-compatible dog pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-dog/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-dog/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "dog",
+        "classic",
+        "friendly",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f436.png"
+    },
+    {
+      "slug": "noto-fox",
+      "displayName": "Noto Fox",
+      "description": "Open-source Codex-compatible fox pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-fox/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-fox/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "fox",
+        "smart",
+        "orange",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f98a.png"
+    },
+    {
+      "slug": "noto-panda",
+      "displayName": "Noto Panda",
+      "description": "Open-source Codex-compatible panda pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-panda/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-panda/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "panda",
+        "calm",
+        "black-white",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f43c.png"
+    },
+    {
+      "slug": "noto-rabbit",
+      "displayName": "Noto Rabbit",
+      "description": "Open-source Codex-compatible rabbit pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-rabbit/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-rabbit/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "rabbit",
+        "soft",
+        "cute",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f430.png"
+    },
+    {
+      "slug": "noto-penguin",
+      "displayName": "Noto Penguin",
+      "description": "Open-source Codex-compatible penguin pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-penguin/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-penguin/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "penguin",
+        "focused",
+        "cool",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f427.png"
+    },
+    {
+      "slug": "noto-owl",
+      "displayName": "Noto Owl",
+      "description": "Open-source Codex-compatible owl pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-owl/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-owl/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "owl",
+        "wise",
+        "night",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f989.png"
+    },
+    {
+      "slug": "noto-hamster",
+      "displayName": "Noto Hamster",
+      "description": "Open-source Codex-compatible hamster pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-hamster/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-hamster/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "hamster",
+        "tiny",
+        "cute",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f439.png"
+    },
+    {
+      "slug": "noto-unicorn",
+      "displayName": "Noto Unicorn",
+      "description": "Open-source Codex-compatible unicorn pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-unicorn/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-unicorn/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "unicorn",
+        "colorful",
+        "fantasy",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f984.png"
+    },
+    {
+      "slug": "noto-dragon",
+      "displayName": "Noto Dragon",
+      "description": "Open-source Codex-compatible dragon pet generated from Google Noto Emoji artwork.",
+      "author": "Google Noto Emoji contributors; packaged by codex123",
+      "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-dragon/pet.json",
+      "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-dragon/spritesheet.webp",
+      "homepage": "https://github.com/googlefonts/noto-emoji",
+      "tags": [
+        "dragon",
+        "fantasy",
+        "green",
+        "noto-emoji",
+        "open-source"
+      ],
+      "license": "Apache-2.0 image resources / upstream Noto Emoji licensing",
+      "sourceUrl": "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f409.png"
+    }
+  ]
+}

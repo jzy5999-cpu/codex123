@@ -7,8 +7,9 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-const PETDEX_MANIFEST_URL: &str = "https://petdex.crafter.run/api/manifest";
-const USER_AGENT: &str = "codex123-petdex/0.2";
+pub const DEFAULT_PET_MANIFEST_URL: &str =
+    "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/manifest.json";
+const USER_AGENT: &str = "codex123-pets/0.3";
 const MAX_MANIFEST_BYTES: usize = 5 * 1024 * 1024;
 const MAX_PET_JSON_BYTES: usize = 1024 * 1024;
 const MAX_SPRITESHEET_BYTES: usize = 20 * 1024 * 1024;
@@ -99,25 +100,22 @@ struct InstallMetadata {
 
 pub async fn fetch_manifest() -> anyhow::Result<PetdexManifest> {
     let client = crate::http_client::proxied_client(USER_AGENT)?;
-    let manifest_url = Url::parse(PETDEX_MANIFEST_URL)?;
+    let manifest_url = Url::parse(DEFAULT_PET_MANIFEST_URL)?;
     let response = client
         .get(manifest_url.clone())
         .send()
         .await
-        .context("请求 Petdex manifest 失败")?
+        .context("请求宠物源 manifest 失败")?
         .error_for_status()
-        .context("Petdex manifest 返回非成功状态")?;
-    let bytes = response
-        .bytes()
-        .await
-        .context("读取 Petdex manifest 失败")?;
+        .context("宠物源 manifest 返回非成功状态")?;
+    let bytes = response.bytes().await.context("读取宠物源 manifest 失败")?;
     if bytes.len() > MAX_MANIFEST_BYTES {
         bail!(
-            "Petdex manifest 超过 {} MB 限制",
+            "宠物源 manifest 超过 {} MB 限制",
             MAX_MANIFEST_BYTES / 1024 / 1024
         );
     }
-    let value: Value = serde_json::from_slice(&bytes).context("Petdex manifest 不是有效 JSON")?;
+    let value: Value = serde_json::from_slice(&bytes).context("宠物源 manifest 不是有效 JSON")?;
     let pets_dir = default_pets_dir();
     let installed = list_installed_pets_in_dir(&pets_dir)?;
     let installed_by_slug = installed
@@ -170,7 +168,7 @@ pub async fn install_from_petdex(
         PetPackageMetadata {
             slug,
             display_name: request.display_name,
-            source: "petdex".to_string(),
+            source: "codex123-curated".to_string(),
             pet_json_url: request.pet_json_url,
             spritesheet_url: request.spritesheet_url,
         },
@@ -577,10 +575,11 @@ fn validate_slug(slug: &str) -> anyhow::Result<String> {
 fn validate_petdex_asset_url(url: &str) -> anyhow::Result<Url> {
     let parsed = Url::parse(url.trim()).context("资源 URL 无效")?;
     if parsed.scheme() != "https" {
-        bail!("Petdex 资源必须使用 HTTPS");
+        bail!("宠物源资源必须使用 HTTPS");
     }
     let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
-    let allowed = host == "petdex.crafter.run"
+    let allowed = host == "raw.githubusercontent.com"
+        || host == "petdex.crafter.run"
         || host.ends_with(".petdex.crafter.run")
         || host == "ufs.sh"
         || host.ends_with(".ufs.sh")
@@ -588,7 +587,7 @@ fn validate_petdex_asset_url(url: &str) -> anyhow::Result<Url> {
         || host.ends_with(".utfs.io")
         || host.ends_with(".r2.dev");
     if !allowed || host == "localhost" || host.ends_with(".localhost") {
-        bail!("Petdex 资源域名不在允许列表中");
+        bail!("宠物源资源域名不在允许列表中");
     }
     Ok(parsed)
 }
@@ -656,6 +655,43 @@ mod tests {
         assert_eq!(pets[0].display_name, "Boba");
         assert_eq!(pets[0].tags, vec!["cozy", "focused"]);
         assert_eq!(pets[0].heat_score, 0);
+    }
+
+    #[test]
+    fn parse_manifest_accepts_codex123_curated_shape() {
+        let value = serde_json::json!({
+            "pets": [{
+                "slug": "noto-cat",
+                "displayName": "Noto Cat",
+                "description": "Open-source Codex-compatible cat pet.",
+                "author": "Google Noto Emoji contributors; packaged by codex123",
+                "petJsonUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/pet.json",
+                "spritesheetUrl": "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/spritesheet.webp",
+                "homepage": "https://github.com/googlefonts/noto-emoji",
+                "tags": ["cat", "noto-emoji", "open-source"],
+                "license": "Apache-2.0 image resources / upstream Noto Emoji licensing"
+            }]
+        });
+
+        let pets = parse_manifest_pets(&value);
+
+        assert_eq!(pets.len(), 1);
+        assert_eq!(pets[0].slug, "noto-cat");
+        assert_eq!(pets[0].display_name, "Noto Cat");
+        assert_eq!(
+            pets[0].pet_json_url,
+            "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/pet.json"
+        );
+    }
+
+    #[test]
+    fn validate_asset_url_allows_github_raw_curated_assets() {
+        let parsed = validate_petdex_asset_url(
+            "https://raw.githubusercontent.com/jzy5999-cpu/codex123/main/assets/pets/noto-cat/spritesheet.webp",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.host_str(), Some("raw.githubusercontent.com"));
     }
 
     #[test]

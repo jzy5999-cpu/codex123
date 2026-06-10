@@ -1,0 +1,5 @@
+{
+  "displayName": "Noto Cat",
+  "description": "Codex-compatible pet generated from Google Noto Emoji cat artwork.",
+  "spritesheetPath": "spritesheet.webp"
+}

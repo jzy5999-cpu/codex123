@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 宠物导入默认来源从 Petdex 站点切换为 `codex123 Curated Pets`，避免 Petdex/Vercel 403 导致刷新不可用。
+- 新增 10 个基于 Google Noto Emoji 开源图片资源生成的 Codex-compatible 宠物包，并在仓库中保留来源、许可证和生成说明。
+- 管理工具宠物页文案改为通用“宠物源”，不再把 Petdex 作为默认市场来源。
+
 ## 0.2.11 - 2026-06-09
 
 - 选择性合入 CodexPlusPlus `v1.2.4` 的 Provider Sync 多 `session_meta` 修复：同一个 rollout JSONL 中的所有 `session_meta` 现在都会同步到目标 provider，并在失败时回滚完整文件内容。

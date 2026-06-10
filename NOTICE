@@ -14,6 +14,16 @@ codex123 adds a remote-control-compatible relay mode, macOS arm64 focused
 packaging, and project branding aimed at a development-experience-first Codex
 workflow.
 
+The initial codex123 curated pet set is generated from Google Noto Emoji image
+resources:
+
+  https://github.com/googlefonts/noto-emoji
+
+Noto Emoji's README states that tools and most image resources are under the
+Apache License, Version 2.0. codex123 converts selected Noto Emoji PNG images
+into Codex-compatible pet spritesheets and keeps per-pet source notes under
+assets/pets/.
+
 This project is not affiliated with, endorsed by, or sponsored by OpenAI.
 Codex, ChatGPT, and related product names belong to their respective owners.
 

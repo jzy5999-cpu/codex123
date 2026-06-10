@@ -39,7 +39,7 @@ After installation, you get two entry points:
 - **Remote-control-compatible relay mode**: stores the relay key in provider config, not in `auth.json` as `OPENAI_API_KEY`.
 - **Remote-control prerequisite diagnostics**: checks ChatGPT auth state, `auth_mode`, provider config, `base_url`, `wire_api`, `requires_openai_auth`, and bearer token.
 - **DeepSeek / Chat Completions compatibility**: local proxy converts Codex Responses requests to Chat Completions and converts upstream responses back.
-- **Petdex pet import**: fetch Codex-compatible pet packages from Petdex and install them into `~/.codex/pets`.
+- **codex123 pet source**: ship 10 Codex-compatible pet packages generated from open-source Noto Emoji image resources and install them into `~/.codex/pets`.
 - **External enhancement injection**: launcher + Chromium DevTools Protocol, without patching the Codex App installation.
 - **Installable macOS app**: Apple Silicon DMG with a silent launcher and a manager entry point.
 
@@ -129,9 +129,9 @@ Recommended DeepSeek setup:
 
 The current compatibility layer includes DeepSeek reasoning effort mapping, `reasoning_content` streaming conversion, a fallback `reasoning_content` for assistant tool-call history, and basic tool-call history conversion. This improves DeepSeek stability for long sessions and tool use, but it does not guarantee that every DeepSeek relay will work; the relay still needs compatible Chat Completions, streaming, and tool-call behavior.
 
-## Petdex Pet Import
+## codex123 Pet Import
 
-The manager includes a Petdex MVP for installing Codex-compatible pet packages into the user data directory:
+The manager includes a built-in pet source for installing Codex-compatible pet packages into the user data directory:
 
 ```text
 ~/.codex/pets/<slug>/
@@ -143,13 +143,15 @@ How to use it:
 
 1. Open `codex123 管理工具`.
 2. Go to `宠物导入`.
-3. Click `刷新 Petdex`.
+3. Click `刷新宠物源`.
 4. Browse the list sorted by local heat score, then search and install the pet you want.
 5. Open Codex and choose it manually in `Settings -> Appearance -> Pets`.
 
 This feature only writes to `~/.codex/pets`. It does not modify the original Codex App installation and does not automatically change Codex's internal selected-pet state. Before installation, codex123 validates HTTPS, allowed asset hosts, slug safety, JSON format, PNG/WEBP spritesheets, file size limits, and uses a temporary directory for atomic installation. Each install writes `codex123-installed.json` metadata for update detection, and the local installed list can delete valid slug directories.
 
-The pet list currently uses a local `codex123` composite heat score so it is easier to pick fuller or already-maintained pets first. This is not an official Petdex download count, like count, or popularity metric.
+The default pet source is `codex123 Curated Pets`, currently containing 10 pet packages generated from [Google Noto Emoji](https://github.com/googlefonts/noto-emoji) image resources: cat, dog, fox, panda, rabbit, penguin, owl, hamster, unicorn, and dragon. The Noto Emoji README states that tools and most image resources are under the Apache License 2.0; codex123 keeps source, license, and packaging notes in `assets/pets/ATTRIBUTION.md` and each pet directory README.
+
+The pet list currently uses a local `codex123` composite heat score so it is easier to pick fuller or already-maintained pets first. This is not a real download count, like count, or popularity metric. The Petdex website is no longer the default source; any future third-party source must have redistribution-friendly licensing before being bundled.
 
 ## Open Source and Thanks
 
