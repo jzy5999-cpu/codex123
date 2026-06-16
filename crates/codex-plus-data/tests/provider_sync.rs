@@ -44,6 +44,9 @@ fn write_rollout_with_providers(path: &Path, providers: &[&str], thread_id: &str
 }
 
 fn create_state_db(path: &Path) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
     let db = Connection::open(path).unwrap();
     db.execute(
         "CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT, archived INTEGER, has_user_event INTEGER, cwd TEXT)",
@@ -139,6 +142,48 @@ fn provider_sync_updates_rollout_sqlite_visibility_and_creates_backup() {
     let backup_dir = result.backup_dir.unwrap();
     assert!(backup_dir.join("session-meta-backup.json").exists());
     assert!(backup_dir.join("db/state_5.sqlite").exists());
+}
+
+#[test]
+fn provider_sync_updates_legacy_and_codex_sqlite_session_dbs() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path().join(".codex");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
+    let rollout = home.join("sessions/2026/rollout-multi-db.jsonl");
+    write_rollout(&rollout, "openai", "thread-1", "C:/workspace");
+    let legacy_db = home.join("state_5.sqlite");
+    let codex_dev_db = home.join("sqlite/codex-dev.db");
+    create_state_db(&legacy_db);
+    create_state_db(&codex_dev_db);
+
+    let result = run_provider_sync(Some(&home));
+
+    assert_eq!(result.status, ProviderSyncStatus::Synced);
+    assert_eq!(result.sqlite_rows_updated, 2);
+    for path in [&legacy_db, &codex_dev_db] {
+        let db = Connection::open(path).unwrap();
+        let row = db
+            .query_row(
+                "SELECT model_provider, has_user_event, cwd FROM threads WHERE id = 'thread-1'",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            row,
+            ("apigather".to_string(), 1, "C:/workspace".to_string())
+        );
+    }
+    let backup_dir = result.backup_dir.unwrap();
+    assert!(backup_dir.join("db/state_5.sqlite").exists());
+    assert!(backup_dir.join("db/sqlite/codex-dev.db").exists());
 }
 
 #[test]

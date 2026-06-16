@@ -116,8 +116,9 @@ pub fn run_provider_sync_with_target(
             .iter()
             .filter_map(|change| Some((change.thread_id.clone()?, change.cwd.clone()?)))
             .collect::<HashMap<_, _>>();
-        let sqlite_update_count = count_sqlite_updates(
-            &home.join("state_5.sqlite"),
+        let sqlite_paths = codex_plus_core::codex_sqlite::codex_session_db_paths_from_home(&home);
+        let sqlite_update_count = count_sqlite_updates_for_paths(
+            &sqlite_paths,
             &target_provider,
             &thread_ids_with_user_events,
             &cwd_by_thread_id,
@@ -138,8 +139,8 @@ pub fn run_provider_sync_with_target(
         let backup_dir = create_backup(&home, &target_provider, &rewrite_changes)?;
         apply_session_changes(&rewrite_changes)?;
         let apply_result = (|| -> anyhow::Result<usize> {
-            let sqlite_rows_updated = apply_sqlite_update(
-                &home.join("state_5.sqlite"),
+            let sqlite_rows_updated = apply_sqlite_update_for_paths(
+                &sqlite_paths,
                 &target_provider,
                 &thread_ids_with_user_events,
                 &cwd_by_thread_id,
@@ -416,11 +417,17 @@ fn create_backup(
         }
     }
     let db_dir = backup_dir.join("db");
-    for name in ["state_5.sqlite", "state_5.sqlite-wal", "state_5.sqlite-shm"] {
-        let source = home.join(name);
-        if source.exists() {
-            fs::create_dir_all(&db_dir)?;
-            fs::copy(&source, db_dir.join(name))?;
+    for db_path in codex_plus_core::codex_sqlite::codex_session_db_paths_from_home(home) {
+        for source in codex_plus_core::codex_sqlite::codex_sqlite_sidecar_paths(&db_path) {
+            if !source.exists() {
+                continue;
+            }
+            let relative = codex_plus_core::codex_sqlite::relative_to_codex_home(home, &source);
+            let target = db_dir.join(&relative);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&source, target)?;
         }
     }
     let manifest = changes
@@ -520,6 +527,24 @@ fn count_sqlite_updates(
     Ok(total)
 }
 
+fn count_sqlite_updates_for_paths(
+    paths: &[PathBuf],
+    target_provider: &str,
+    user_event_thread_ids: &HashSet<String>,
+    cwd_by_thread_id: &HashMap<String, String>,
+) -> anyhow::Result<usize> {
+    let mut total = 0;
+    for path in paths {
+        total += count_sqlite_updates(
+            path,
+            target_provider,
+            user_event_thread_ids,
+            cwd_by_thread_id,
+        )?;
+    }
+    Ok(total)
+}
+
 fn apply_sqlite_update(
     path: &Path,
     target_provider: &str,
@@ -557,6 +582,24 @@ fn apply_sqlite_update(
     }
     tx.commit()?;
     Ok(provider_rows)
+}
+
+fn apply_sqlite_update_for_paths(
+    paths: &[PathBuf],
+    target_provider: &str,
+    user_event_thread_ids: &HashSet<String>,
+    cwd_by_thread_id: &HashMap<String, String>,
+) -> anyhow::Result<usize> {
+    let mut total = 0;
+    for path in paths {
+        total += apply_sqlite_update(
+            path,
+            target_provider,
+            user_event_thread_ids,
+            cwd_by_thread_id,
+        )?;
+    }
+    Ok(total)
 }
 
 fn load_global_state(path: &Path) -> anyhow::Result<Map<String, Value>> {

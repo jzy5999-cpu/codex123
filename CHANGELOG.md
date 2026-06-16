@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.2.13 - 2026-06-16
+
+- 选择性合入 CodexPlusPlus 上游模型白名单注入修复：模型解锁扫描会跳过工作区侧边栏等 Codex 主界面区域，降低误伤 UI 的风险。
+- 选择性合入启动配置保护修复：启动或重启 codex123 时不再自动应用当前中转 profile，避免无意重写 `config.toml` / `auth.json`。
+- Provider Sync 历史会话修复兼容新版 Codex SQLite 目录：除旧版 `state_5.sqlite` 外，也会处理 `~/.codex/sqlite/codex-dev.db` 等会话数据库，并一并备份 sidecar 文件。
+- 本次仍只更新 macOS 本机版本；Windows 版本不随本次更新变更。
+
 ## 0.2.12 - 2026-06-10
 
 - 宠物导入默认来源从 Petdex 站点切换为 `codex123 Curated Pets`，避免 Petdex/Vercel 403 导致刷新不可用。
