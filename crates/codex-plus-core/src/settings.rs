@@ -75,6 +75,8 @@ pub struct RelayProfile {
     pub model_insert_mode: RelayModelInsertMode,
     #[serde(rename = "modelList", default)]
     pub model_list: String,
+    #[serde(rename = "userAgent", default)]
+    pub user_agent: String,
 }
 
 impl Default for RelayProfile {
@@ -100,6 +102,7 @@ impl Default for RelayProfile {
             auto_compact_limit: String::new(),
             model_insert_mode: RelayModelInsertMode::Patch,
             model_list: String::new(),
+            user_agent: String::new(),
         }
     }
 }
@@ -261,6 +264,7 @@ impl BackendSettings {
                 auto_compact_limit: String::new(),
                 model_insert_mode: RelayModelInsertMode::Patch,
                 model_list: String::new(),
+                user_agent: String::new(),
             };
         }
 
@@ -305,6 +309,7 @@ impl BackendSettings {
             auto_compact_limit: String::new(),
             model_insert_mode: RelayModelInsertMode::Patch,
             model_list: String::new(),
+            user_agent: String::new(),
         }
     }
 }

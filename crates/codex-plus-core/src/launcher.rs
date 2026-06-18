@@ -652,6 +652,7 @@ async fn handle_helper_connection(
     let method = parts.next().unwrap_or_default();
     let path = parts.next().unwrap_or_default();
     let request_body = http_request_body(&request);
+    let request_user_agent = header_value_from_request(&request, "user-agent");
     let remote_addr_text = remote_addr.map(|addr| addr.to_string());
 
     let _ = crate::diagnostic_log::append_diagnostic_log(
@@ -669,6 +670,7 @@ async fn handle_helper_connection(
         return handle_protocol_proxy_connection(
             &mut stream,
             request_body,
+            request_user_agent.as_deref(),
             method,
             path,
             remote_addr_text,
@@ -679,6 +681,7 @@ async fn handle_helper_connection(
         return handle_chat_completions_proxy_connection(
             &mut stream,
             request_body,
+            request_user_agent.as_deref(),
             method,
             path,
             remote_addr_text,
@@ -686,7 +689,14 @@ async fn handle_helper_connection(
         .await;
     }
     if crate::protocol_proxy::is_models_proxy_path(path) && matches!(method, "GET" | "OPTIONS") {
-        return handle_models_proxy_connection(&mut stream, method, path, remote_addr_text).await;
+        return handle_models_proxy_connection(
+            &mut stream,
+            request_user_agent.as_deref(),
+            method,
+            path,
+            remote_addr_text,
+        )
+        .await;
     }
 
     let (status, body, content_type, log_event) =
@@ -776,6 +786,7 @@ async fn handle_helper_connection(
 
 async fn handle_models_proxy_connection(
     stream: &mut tokio::net::TcpStream,
+    request_user_agent: Option<&str>,
     method: &str,
     path: &str,
     remote_addr_text: Option<String>,
@@ -792,7 +803,8 @@ async fn handle_models_proxy_connection(
         return Ok(());
     }
 
-    let upstream = match crate::protocol_proxy::open_models_proxy_request().await {
+    let upstream = match crate::protocol_proxy::open_models_proxy_request(request_user_agent).await
+    {
         Ok(upstream) => upstream,
         Err(error) => {
             let body = serde_json::to_vec(&serde_json::json!({
@@ -845,36 +857,40 @@ async fn handle_models_proxy_connection(
 async fn handle_protocol_proxy_connection(
     stream: &mut tokio::net::TcpStream,
     request_body: &str,
+    request_user_agent: Option<&str>,
     method: &str,
     path: &str,
     remote_addr_text: Option<String>,
 ) -> anyhow::Result<()> {
     let request_json = serde_json::from_str::<serde_json::Value>(request_body).ok();
-    let upstream = match crate::protocol_proxy::open_responses_proxy_request(request_body).await {
-        Ok(upstream) => upstream,
-        Err(error) => {
-            let body = serde_json::to_vec(&serde_json::json!({
-                "status": "failed",
-                "message": error.to_string()
-            }))?;
-            write_http_response(
-                stream,
-                "502 Bad Gateway",
-                "application/json; charset=utf-8",
-                &body,
-            )
-            .await?;
-            log_helper_response(
-                "helper.protocol_proxy_failed",
-                method,
-                path,
-                "502 Bad Gateway",
-                remote_addr_text,
-            );
-            stream.shutdown().await?;
-            return Ok(());
-        }
-    };
+    let upstream =
+        match crate::protocol_proxy::open_responses_proxy_request(request_body, request_user_agent)
+            .await
+        {
+            Ok(upstream) => upstream,
+            Err(error) => {
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "status": "failed",
+                    "message": error.to_string()
+                }))?;
+                write_http_response(
+                    stream,
+                    "502 Bad Gateway",
+                    "application/json; charset=utf-8",
+                    &body,
+                )
+                .await?;
+                log_helper_response(
+                    "helper.protocol_proxy_failed",
+                    method,
+                    path,
+                    "502 Bad Gateway",
+                    remote_addr_text,
+                );
+                stream.shutdown().await?;
+                return Ok(());
+            }
+        };
 
     if !upstream.is_success() {
         let status = upstream.status();
@@ -969,36 +985,41 @@ async fn handle_protocol_proxy_connection(
 async fn handle_chat_completions_proxy_connection(
     stream: &mut tokio::net::TcpStream,
     request_body: &str,
+    request_user_agent: Option<&str>,
     method: &str,
     path: &str,
     remote_addr_text: Option<String>,
 ) -> anyhow::Result<()> {
-    let upstream =
-        match crate::protocol_proxy::open_chat_completions_proxy_request(request_body).await {
-            Ok(upstream) => upstream,
-            Err(error) => {
-                let body = serde_json::to_vec(&serde_json::json!({
-                    "status": "failed",
-                    "message": error.to_string()
-                }))?;
-                write_http_response(
-                    stream,
-                    "502 Bad Gateway",
-                    "application/json; charset=utf-8",
-                    &body,
-                )
-                .await?;
-                log_helper_response(
-                    "helper.chat_completions_proxy_failed",
-                    method,
-                    path,
-                    "502 Bad Gateway",
-                    remote_addr_text,
-                );
-                stream.shutdown().await?;
-                return Ok(());
-            }
-        };
+    let upstream = match crate::protocol_proxy::open_chat_completions_proxy_request(
+        request_body,
+        request_user_agent,
+    )
+    .await
+    {
+        Ok(upstream) => upstream,
+        Err(error) => {
+            let body = serde_json::to_vec(&serde_json::json!({
+                "status": "failed",
+                "message": error.to_string()
+            }))?;
+            write_http_response(
+                stream,
+                "502 Bad Gateway",
+                "application/json; charset=utf-8",
+                &body,
+            )
+            .await?;
+            log_helper_response(
+                "helper.chat_completions_proxy_failed",
+                method,
+                path,
+                "502 Bad Gateway",
+                remote_addr_text,
+            );
+            stream.shutdown().await?;
+            return Ok(());
+        }
+    };
 
     let status = upstream.status();
     let is_success = upstream.is_success();
@@ -1139,6 +1160,37 @@ fn http_request_body(request: &str) -> &str {
         .split_once("\r\n\r\n")
         .map(|(_, body)| body)
         .unwrap_or_default()
+}
+
+fn header_value_from_request(request: &str, header_name: &str) -> Option<String> {
+    request
+        .split_once("\r\n\r\n")
+        .map(|(headers, _)| headers)
+        .unwrap_or(request)
+        .lines()
+        .skip(1)
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.trim()
+                .eq_ignore_ascii_case(header_name)
+                .then(|| value.trim().to_string())
+        })
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod helper_request_tests {
+    use super::header_value_from_request;
+
+    #[test]
+    fn header_value_from_request_reads_user_agent_case_insensitively() {
+        let request = "POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: Codex/26.614\r\nContent-Length: 2\r\n\r\n{}";
+
+        assert_eq!(
+            header_value_from_request(request, "user-agent").as_deref(),
+            Some("Codex/26.614")
+        );
+    }
 }
 
 fn sanitize_diagnostic_event(event: &str) -> String {

@@ -143,6 +143,7 @@ type RelayProfile = {
   contextWindow: string;
   autoCompactLimit: string;
   modelList: string;
+  userAgent: string;
 };
 
 type RelayContextSelection = {
@@ -465,6 +466,7 @@ const defaultSettings: BackendSettings = {
       contextWindow: "",
       autoCompactLimit: "",
       modelList: "",
+      userAgent: "",
     },
   ],
   relayCommonConfigContents: "",
@@ -3090,6 +3092,13 @@ function RelayProfileEditor({
                 placeholder="留空不改写，例如 160000"
               />
             </Field>
+            <Field className="relay-field-user-agent" label="User-Agent">
+              <Input
+                value={profile.userAgent}
+                onChange={(event) => updateDraft({ userAgent: event.currentTarget.value })}
+                placeholder="留空则透传 Codex 原始 User-Agent"
+              />
+            </Field>
           </div>
         ) : null}
         {profile.relayMode === "official" ? (
@@ -4364,6 +4373,7 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
             contextWindow: "",
             autoCompactLimit: "",
             modelList: "",
+            userAgent: "",
           },
         ];
   const activeRelayId = profiles.some((profile) => profile.id === settings.activeRelayId)
@@ -4429,6 +4439,7 @@ function normalizeRelayProfile(profile: RelayProfile, defaultContextSelection = 
     contextWindow: profile.contextWindow || "",
     autoCompactLimit: profile.autoCompactLimit || "",
     modelList: profile.modelList || "",
+    userAgent: profile.userAgent || "",
   };
   if (!normalized.configContents.trim() || !normalized.authContents.trim()) {
     normalized = withGeneratedRelayFiles(normalized);
@@ -4997,6 +5008,7 @@ function createRelayProfile(settings: BackendSettings): RelayProfile {
     contextWindow: "",
     autoCompactLimit: "",
     modelList: "",
+    userAgent: "",
   };
   return withGeneratedRelayFiles(next);
 }

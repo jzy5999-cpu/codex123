@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.14 - 2026-06-18
+
+- 选择性合入 CodexPlusPlus `v1.2.14` 的代理 User-Agent 透传修复：Chat Completions、Responses 转发和 Models 代理在未手动配置 User-Agent 时会保留 Codex 客户端原始 User-Agent。
+- 供应商高级选项新增 `User-Agent` 字段；留空表示透传 Codex 原始 User-Agent，填写后则按供应商配置覆盖。
+- 本次仍只更新 macOS 相关功能路径；Windows 版本不随本次更新变更。
+
 ## 0.2.13 - 2026-06-16
 
 - 选择性合入 CodexPlusPlus 上游模型白名单注入修复：模型解锁扫描会跳过工作区侧边栏等 Codex 主界面区域，降低误伤 UI 的风险。
