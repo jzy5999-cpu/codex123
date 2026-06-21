@@ -129,7 +129,20 @@ pub fn default_install_root() -> Option<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
-        return Some(PathBuf::from("/Applications"));
+        let sys_apps = PathBuf::from("/Applications");
+        if sys_apps.join(format!("{SILENT_NAME}.app")).exists()
+            || sys_apps.join(format!("{MANAGER_NAME}.app")).exists()
+        {
+            return Some(sys_apps);
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = macos_applications_dir_from_exe(&exe) {
+                if is_macos_applications_dir(&dir) {
+                    return Some(dir);
+                }
+            }
+        }
+        return Some(sys_apps);
     }
 
     #[cfg(not(any(windows, target_os = "macos")))]
@@ -232,37 +245,103 @@ pub fn companion_binary_path(binary: &str) -> PathBuf {
 pub fn companion_binary_path_from_exe(exe: &Path, binary: &str) -> PathBuf {
     let dir = exe.parent().unwrap_or_else(|| Path::new("."));
     let suffix = if cfg!(windows) { ".exe" } else { "" };
-    if binary == SILENT_BINARY {
-        if let Some(sibling_app_binary) = macos_silent_app_binary_from_exe(exe) {
-            return sibling_app_binary;
-        }
-        let same_bundle = dir.join(binary);
-        if same_bundle.exists() {
-            return same_bundle;
-        }
+    if let Some(bundle_binary) = macos_companion_binary_from_exe(exe, binary) {
+        return bundle_binary;
+    }
+    let same_bundle = dir.join(binary);
+    if same_bundle.exists() {
+        return same_bundle;
     }
     dir.join(format!("{binary}{suffix}"))
 }
 
-fn macos_silent_app_binary_from_exe(exe: &Path) -> Option<PathBuf> {
-    macos_applications_dir_from_exe(exe).map(|applications_dir| {
-        applications_dir
+fn macos_companion_binary_from_exe(exe: &Path, binary: &str) -> Option<PathBuf> {
+    let (applications_dir, app_name) = macos_applications_dir_and_app_name_from_exe(exe)?;
+    if binary == SILENT_BINARY {
+        if app_name == format!("{SILENT_NAME}.app") {
+            return Some(macos_preferred_bundle_binary(
+                exe,
+                SILENT_BINARY,
+                "codex123",
+            ));
+        }
+        let macos = applications_dir
             .join(format!("{SILENT_NAME}.app"))
             .join("Contents")
-            .join("MacOS")
-            .join("codex123")
-    })
+            .join("MacOS");
+        return Some(
+            macos
+                .join(SILENT_BINARY)
+                .exists()
+                .then(|| macos.join(SILENT_BINARY))
+                .unwrap_or_else(|| macos.join("codex123")),
+        );
+    }
+    if binary == MANAGER_BINARY {
+        if app_name == format!("{MANAGER_NAME}.app") {
+            return Some(macos_preferred_bundle_binary(
+                exe,
+                MANAGER_BINARY,
+                "codex123Manager",
+            ));
+        }
+        let macos = applications_dir
+            .join(format!("{MANAGER_NAME}.app"))
+            .join("Contents")
+            .join("MacOS");
+        return Some(
+            macos
+                .join(MANAGER_BINARY)
+                .exists()
+                .then(|| macos.join(MANAGER_BINARY))
+                .unwrap_or_else(|| macos.join("codex123Manager")),
+        );
+    }
+    None
 }
 
+fn macos_preferred_bundle_binary(
+    exe: &Path,
+    sidecar_name: &str,
+    bundle_executable_name: &str,
+) -> PathBuf {
+    let macos = exe.parent().unwrap_or_else(|| Path::new("."));
+    let sidecar = macos.join(sidecar_name);
+    if sidecar.exists() {
+        return sidecar;
+    }
+    let bundle_executable = macos.join(bundle_executable_name);
+    if bundle_executable.exists() {
+        return bundle_executable;
+    }
+    exe.to_path_buf()
+}
+
+#[cfg(target_os = "macos")]
 fn macos_applications_dir_from_exe(exe: &Path) -> Option<PathBuf> {
+    macos_applications_dir_and_app_name_from_exe(exe).map(|(dir, _)| dir)
+}
+
+fn macos_applications_dir_and_app_name_from_exe(exe: &Path) -> Option<(PathBuf, String)> {
     let mut path = exe;
     while let Some(parent) = path.parent() {
         if path.extension().and_then(|extension| extension.to_str()) == Some("app") {
-            return Some(parent.to_path_buf());
+            let app_name = path.file_name()?.to_string_lossy().to_string();
+            return Some((parent.to_path_buf(), app_name));
         }
         path = parent;
     }
     None
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_applications_dir(path: &Path) -> bool {
+    if path == Path::new("/Applications") {
+        return true;
+    }
+    directories::BaseDirs::new()
+        .map(|dirs| path == dirs.home_dir().join("Applications"))
+        .unwrap_or(false)
 }
 
 pub(crate) fn install_root_or_default(options: &InstallOptions) -> PathBuf {

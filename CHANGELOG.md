@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.15 - 2026-06-21
+
+- 选择性合入 CodexPlusPlus `v1.2.18` 的 Responses 到 Chat Completions 协议修复：历史 tool call 的 `arguments` 为空、非 JSON、数组或纯文本时会规范化为合法 JSON，降低中转 API 报错概率。
+- 选择性合入 CodexPlusPlus 上游 macOS companion binary 定位修复：`codex123.app` 与 `codex123 管理工具.app` 互相查找启动二进制时更稳定，并避免非 Applications 临时 bundle 影响默认安装目录。
+- 本次仍只更新 macOS 本机版本；Windows 版本和发布资产不随本次更新变更。
+
 ## 0.2.14 - 2026-06-18
 
 - 选择性合入 CodexPlusPlus `v1.2.14` 的代理 User-Agent 透传修复：Chat Completions、Responses 转发和 Models 代理在未手动配置 User-Agent 时会保留 Codex 客户端原始 User-Agent。

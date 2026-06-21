@@ -617,6 +617,68 @@ fn responses_input_flattens_namespace_function_history_and_skips_invalid_tool_it
 }
 
 #[test]
+fn responses_input_sanitizes_invalid_function_call_arguments_history() {
+    let converted = responses_to_chat_completions(json!({
+        "model": "gpt-5-mini",
+        "input": [
+            {
+                "type": "function_call",
+                "call_id": "bad_object",
+                "name": "broken_args",
+                "arguments": "{foo: \"bar\"}"
+            },
+            {
+                "type": "function_call",
+                "call_id": "plain_text",
+                "name": "plain_args",
+                "arguments": "raw text with \"quotes\" and \\slashes"
+            },
+            {
+                "type": "function_call",
+                "call_id": "array_args",
+                "name": "array_args",
+                "arguments": "[1,2,3]"
+            },
+            {
+                "type": "tool_call",
+                "tool_use": {
+                    "id": "object_args",
+                    "type": "function",
+                    "name": "object_args",
+                    "input": { "cmd": "ls" }
+                }
+            },
+            {
+                "type": "tool_call",
+                "tool_use": {
+                    "id": "number_args",
+                    "type": "function",
+                    "name": "number_args",
+                    "input": 7
+                }
+            }
+        ]
+    }))
+    .unwrap();
+
+    let tool_calls = converted["messages"][0]["tool_calls"].as_array().unwrap();
+    assert_eq!(
+        tool_calls[0]["function"]["arguments"],
+        "{\"input\":\"{foo: \\\"bar\\\"}\"}"
+    );
+    assert_eq!(
+        tool_calls[1]["function"]["arguments"],
+        "{\"input\":\"raw text with \\\"quotes\\\" and \\\\slashes\"}"
+    );
+    assert_eq!(
+        tool_calls[2]["function"]["arguments"],
+        "{\"input\":[1,2,3]}"
+    );
+    assert_eq!(tool_calls[3]["function"]["arguments"], "{\"cmd\":\"ls\"}");
+    assert_eq!(tool_calls[4]["function"]["arguments"], "{\"input\":7}");
+}
+
+#[test]
 fn responses_input_downgrades_orphan_tool_outputs_to_user_messages() {
     let converted = responses_to_chat_completions(json!({
         "model": "gpt-5-mini",

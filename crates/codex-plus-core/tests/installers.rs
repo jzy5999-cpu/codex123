@@ -1,5 +1,5 @@
 use codex_plus_core::install::{
-    InstallOptions, SILENT_BINARY, app_bundle_names, build_macos_app_bundle,
+    InstallOptions, MANAGER_BINARY, SILENT_BINARY, app_bundle_names, build_macos_app_bundle,
     build_windows_entrypoint_plan, companion_binary_path_from_exe, default_install_root_strategy,
     shortcut_names,
 };
@@ -88,6 +88,24 @@ fn companion_binary_path_resolves_macos_silent_app_next_to_manager_app() {
     assert_ne!(
         companion,
         std::path::PathBuf::from("/Applications/codex123 管理工具.app/Contents/MacOS/codex123")
+    );
+}
+
+#[test]
+fn companion_binary_path_resolves_macos_manager_app_next_to_silent_app() {
+    let silent_exe = std::path::Path::new("/Applications/codex123.app/Contents/MacOS/codex123");
+
+    let companion = companion_binary_path_from_exe(silent_exe, MANAGER_BINARY);
+
+    assert_eq!(
+        companion,
+        std::path::PathBuf::from(
+            "/Applications/codex123 管理工具.app/Contents/MacOS/codex123Manager"
+        )
+    );
+    assert_ne!(
+        companion,
+        std::path::PathBuf::from("/Applications/codex123.app/Contents/MacOS/codex123-manager")
     );
 }
 
