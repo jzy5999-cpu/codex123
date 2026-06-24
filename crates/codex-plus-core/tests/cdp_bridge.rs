@@ -78,6 +78,17 @@ fn injection_script_explains_plugin_patch_is_unneeded_in_relay_mode() {
 }
 
 #[test]
+fn injection_script_exposes_paste_fix_toggle_and_handler() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("codexAppPasteFix"));
+    assert!(script.contains("syncCodexPasteFixHandler"));
+    assert!(script.contains("document.addEventListener(\"paste\""));
+    assert!(script.contains("document.execCommand(\"insertText\""));
+    assert!(script.contains("粘贴修复"));
+}
+
+#[test]
 fn injection_script_skips_plugin_patch_work_in_relay_mode() {
     let script = assets::injection_script(57321);
 

@@ -39,6 +39,7 @@ After installation, you get two entry points:
 - **Remote-control-compatible relay mode**: stores the relay key in provider config, not in `auth.json` as `OPENAI_API_KEY`.
 - **Remote-control prerequisite diagnostics**: checks ChatGPT auth state, `auth_mode`, provider config, `base_url`, `wire_api`, `requires_openai_auth`, and bearer token.
 - **DeepSeek / Chat Completions compatibility**: local proxy converts Codex Responses requests to Chat Completions and converts upstream responses back.
+- **Optional paste fix**: pasting rich text from Word and similar sources into the Codex composer can be forced to plain text to reduce accidental image/file attachment detection.
 - **codex123 pet source**: ship 10 Codex-compatible pet packages generated from open-source Noto Emoji image resources and install them into `~/.codex/pets`.
 - **External enhancement injection**: launcher + Chromium DevTools Protocol, without patching the Codex App installation.
 - **Installable macOS app**: Apple Silicon DMG with a silent launcher and a manager entry point.

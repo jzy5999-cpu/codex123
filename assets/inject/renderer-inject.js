@@ -875,7 +875,7 @@
   }
 
   function defaultCodexPlusSettings() {
-    return { pluginEntryUnlock: true, pluginMarketplaceUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true, serviceTierControls: false };
+    return { pluginEntryUnlock: true, pluginMarketplaceUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, pasteFix: false, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true, serviceTierControls: false };
   }
 
   function applyBackendPluginSettings(settings) {
@@ -901,6 +901,7 @@
         modelWhitelistUnlock: false,
         sessionDelete: false,
         markdownExport: false,
+        pasteFix: false,
         projectMove: false,
         conversationTimeline: false,
         conversationView: false,
@@ -1002,7 +1003,7 @@
     refreshCodexServiceTierControls();
   }
 
-  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch", codexAppVersion: "", codexAppPluginEntryUnlock: true, codexAppPluginMarketplaceUnlock: true, codexAppForcePluginInstall: true };
+  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch", codexAppVersion: "", codexAppPluginEntryUnlock: true, codexAppPluginMarketplaceUnlock: true, codexAppForcePluginInstall: true, codexAppPasteFix: false };
   let codexPlusBackendSettingsLoaded = false;
   let codexServiceTierState = {
     status: "loading",
@@ -1580,6 +1581,7 @@
       }
       codexPlusBackendSettings = { ...codexPlusBackendSettings, ...settings };
       codexPlusBackendSettingsLoaded = true;
+      syncCodexPasteFixHandler();
       refreshCodexPlusBackendToggles();
       return true;
     } catch (_) {
@@ -1607,8 +1609,42 @@
       const settings = await postJson("/settings/set", { [key]: value });
       codexPlusBackendSettings = { ...codexPlusBackendSettings, ...settings };
     } finally {
+      syncCodexPasteFixHandler();
       refreshCodexPlusBackendToggles();
     }
+  }
+
+  function syncCodexPasteFixHandler() {
+    const enabled = codexPlusBackendSettings.enhancementsEnabled !== false && codexPlusBackendSettings.codexAppPasteFix === true;
+    if (!enabled) {
+      if (window.__codexPasteFixHandler) {
+        document.removeEventListener("paste", window.__codexPasteFixHandler, true);
+        window.__codexPasteFixHandler = null;
+      }
+      return;
+    }
+    if (window.__codexPasteFixHandler) return;
+    window.__codexPasteFixHandler = (event) => {
+      const clipboard = event.clipboardData;
+      if (!clipboard) return;
+      const text = clipboard.getData("text/plain");
+      if (typeof text !== "string" || text.length === 0) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      let inserted = false;
+      try {
+        inserted = document.execCommand("insertText", false, text);
+      } catch (error) {
+        sendCodexPlusDiagnostic("paste_fix_insert_failed", {
+          errorName: error?.name || "",
+          errorMessage: error?.message || String(error),
+        });
+      }
+      if (!inserted) {
+        sendCodexPlusDiagnostic("paste_fix_insert_failed", { errorMessage: "execCommand returned false" });
+      }
+    };
+    document.addEventListener("paste", window.__codexPasteFixHandler, true);
   }
 
   function refreshCodexPlusBackendToggles() {
@@ -1818,6 +1854,10 @@
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">Markdown 导出</div><div class="codex-plus-row-description">在会话列表显示导出按钮，按本地 rollout 导出带时间戳的 Markdown。</div></div>
               <button type="button" class="codex-plus-toggle" data-codex-plus-setting="markdownExport"><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">粘贴修复</div><div class="codex-plus-row-description">从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，避免被识别为图片或文件附件。</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppPasteFix"><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">会话项目移动</div><div class="codex-plus-row-description">在会话列表悬停显示移动按钮，可移动到普通对话或其他本地项目。</div></div>

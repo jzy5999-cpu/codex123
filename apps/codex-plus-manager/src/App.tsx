@@ -105,6 +105,7 @@ type BackendSettings = {
   codexAppPluginEntryUnlock: boolean;
   codexAppPluginMarketplaceUnlock: boolean;
   codexAppForcePluginInstall: boolean;
+  codexAppPasteFix: boolean;
   codexGoalsEnabled: boolean;
   launchMode: LaunchMode;
   relayBaseUrl: string;
@@ -441,6 +442,7 @@ const defaultSettings: BackendSettings = {
   codexAppPluginEntryUnlock: true,
   codexAppPluginMarketplaceUnlock: true,
   codexAppForcePluginInstall: true,
+  codexAppPasteFix: false,
   codexGoalsEnabled: false,
   launchMode: "patch",
   relayBaseUrl: "",
@@ -1972,10 +1974,23 @@ function EnhanceScreen({
                 <small>解除 App unavailable / 应用不可用导致的前端安装禁用；仅完整增强模式启用。</small>
               </span>
             </label>
+            <label className="switch-row">
+              <input
+                checked={form.codexAppPasteFix}
+                disabled={!form.enhancementsEnabled}
+                onChange={(event) => onFormChange({ ...form, codexAppPasteFix: event.currentTarget.checked })}
+                type="checkbox"
+              />
+              <span>
+                <strong>粘贴修复</strong>
+                <small>从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，避免被识别为图片或文件附件。</small>
+              </span>
+            </label>
           </div>
           <div className="feature-list">
             <FeatureItem title="会话删除" detail="在会话列表悬停显示删除按钮，并支持撤销。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Markdown 导出" detail="按本地 rollout 导出带时间戳的 Markdown。" enabled={form.enhancementsEnabled} />
+            <FeatureItem title="粘贴修复" detail="富文本粘贴时保留纯文本，减少误触附件上传。" enabled={form.enhancementsEnabled && form.codexAppPasteFix} />
             <FeatureItem title="项目移动" detail="把会话移动到普通对话或其他本地项目。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Timeline" detail="在对话右侧显示用户提问时间线。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="插件入口解锁" detail="按 Codex App 版本自动选择旧版入口策略。" enabled={pluginControlsEnabled && form.codexAppPluginEntryUnlock} />

@@ -113,6 +113,33 @@ fn asset_selection_prefers_current_platform_artifacts() {
 }
 
 #[test]
+fn asset_selection_distinguishes_x64_and_arm64_macos_dmgs() {
+    let assets = vec![
+        (
+            "codex123-0.2.16-macos-arm64.dmg".to_string(),
+            "https://example.test/app-arm64.dmg".to_string(),
+        ),
+        (
+            "codex123-0.2.16-macos-x64.dmg".to_string(),
+            "https://example.test/app-x64.dmg".to_string(),
+        ),
+    ];
+
+    if cfg!(target_os = "macos") {
+        let selected = select_update_asset(&assets)
+            .expect("a macOS DMG should be selected for the running arch");
+        let expected = match std::env::consts::ARCH {
+            "x86_64" => "codex123-0.2.16-macos-x64.dmg",
+            "aarch64" => "codex123-0.2.16-macos-arm64.dmg",
+            other => panic!("unexpected target arch in test: {other}"),
+        };
+        assert_eq!(selected.name, expected);
+    } else {
+        assert!(select_update_asset(&assets).is_none());
+    }
+}
+
+#[test]
 fn safe_asset_name_rejects_path_traversal() {
     assert_eq!(safe_asset_name("pkg.zip").unwrap(), "pkg.zip");
     assert!(safe_asset_name("../pkg.zip").is_err());

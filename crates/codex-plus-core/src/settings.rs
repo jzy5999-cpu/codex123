@@ -165,6 +165,8 @@ pub struct BackendSettings {
     pub codex_app_plugin_marketplace_unlock: bool,
     #[serde(rename = "codexAppForcePluginInstall", default = "default_true")]
     pub codex_app_force_plugin_install: bool,
+    #[serde(rename = "codexAppPasteFix", default)]
+    pub codex_app_paste_fix: bool,
     #[serde(rename = "codexGoalsEnabled", default)]
     pub codex_goals_enabled: bool,
     #[serde(rename = "launchMode", default)]
@@ -211,6 +213,7 @@ impl Default for BackendSettings {
             codex_app_plugin_entry_unlock: true,
             codex_app_plugin_marketplace_unlock: true,
             codex_app_force_plugin_install: true,
+            codex_app_paste_fix: false,
             codex_goals_enabled: false,
             launch_mode: LaunchMode::Patch,
             relay_base_url: default_relay_base_url(),
@@ -526,6 +529,9 @@ fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<Stri
         .and_then(Value::as_bool)
     {
         target.insert("codexAppForcePluginInstall".to_string(), Value::Bool(value));
+    }
+    if let Some(value) = source.get("codexAppPasteFix").and_then(Value::as_bool) {
+        target.insert("codexAppPasteFix".to_string(), Value::Bool(value));
     }
     if let Some(value) = source.get("codexGoalsEnabled").and_then(Value::as_bool) {
         target.insert("codexGoalsEnabled".to_string(), Value::Bool(value));

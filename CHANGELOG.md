@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.16 - 2026-06-24
+
+- 选择性合入 CodexPlusPlus 上游粘贴修复：管理工具和 Codex 内增强菜单新增“粘贴修复”开关，开启后从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，减少误识别为图片或文件附件。
+- 选择性合入 CodexPlusPlus 上游更新器架构选择修复：检查更新时优先选择当前 macOS 架构对应的 DMG，避免同一 Release 同时存在 x64 / arm64 资产时选错。
+- 本次仍只更新 macOS 相关功能路径；不合入上游赞助、交流群、二维码等 Codex++ 项目展示内容。
+
 ## 0.2.15 - 2026-06-21
 
 - 选择性合入 CodexPlusPlus `v1.2.18` 的 Responses 到 Chat Completions 协议修复：历史 tool call 的 `arguments` 为空、非 JSON、数组或纯文本时会规范化为合法 JSON，降低中转 API 报错概率。
