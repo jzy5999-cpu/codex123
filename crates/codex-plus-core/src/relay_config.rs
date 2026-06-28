@@ -455,7 +455,8 @@ pub fn apply_relay_profile_files_to_home_with_context(
         &profile.context_window,
         &profile.auto_compact_limit,
     )?;
-    apply_relay_files_to_home(home, &config_with_limits, &profile.auth_contents)
+    let config_with_catalog = apply_model_catalog_to_config(home, profile, &config_with_limits)?;
+    apply_relay_files_to_home(home, &config_with_catalog, &profile.auth_contents)
 }
 
 pub fn apply_relay_profile_to_home_with_switch_rules(
@@ -478,16 +479,17 @@ pub fn apply_relay_profile_to_home_with_switch_rules(
         &profile.context_window,
         &profile.auto_compact_limit,
     )?;
+    let config_with_catalog = apply_model_catalog_to_config(home, profile, &config_with_limits)?;
 
     if profile.relay_mode == RelayMode::PureApi {
-        apply_relay_files_to_home(home, &config_with_limits, &profile.auth_contents)
+        apply_relay_files_to_home(home, &config_with_catalog, &profile.auth_contents)
     } else if profile.relay_mode == RelayMode::RemoteRelay {
-        validate_remote_relay_config(&config_with_limits)?;
+        validate_remote_relay_config(&config_with_catalog)?;
         let auth_contents = remote_relay_auth_for_switch(home, &profile.auth_contents)?;
-        apply_relay_files_to_home(home, &config_with_limits, &auth_contents)
+        apply_relay_files_to_home(home, &config_with_catalog, &auth_contents)
     } else {
         let auth_contents = official_profile_auth_for_switch(home, &profile.auth_contents)?;
-        apply_relay_files_to_home(home, &config_with_limits, &auth_contents)
+        apply_relay_files_to_home(home, &config_with_catalog, &auth_contents)
     }
 }
 
@@ -508,7 +510,8 @@ pub fn apply_relay_profile_config_to_home_with_context(
         &profile.context_window,
         &profile.auto_compact_limit,
     )?;
-    apply_relay_config_file_to_home(home, &config_with_limits)
+    let config_with_catalog = apply_model_catalog_to_config(home, profile, &config_with_limits)?;
+    apply_relay_config_file_to_home(home, &config_with_catalog)
 }
 
 pub fn apply_relay_config_file_to_home(
@@ -1237,6 +1240,61 @@ fn apply_context_limits_to_config(
     Ok(normalize_optional_toml(doc))
 }
 
+fn apply_model_catalog_to_config(
+    home: &Path,
+    profile: &RelayProfile,
+    config_text: &str,
+) -> anyhow::Result<String> {
+    let catalog_relative = format!(
+        "model-catalogs/{}.json",
+        sanitize_catalog_filename(&profile.id)
+    );
+    if let Some(existing) = root_key_string(config_text, "model_catalog_json") {
+        if existing != catalog_relative {
+            return Ok(config_text.to_string());
+        }
+    }
+
+    let (model_list, model_windows): (String, std::collections::HashMap<String, String>) =
+        if profile.model_windows.trim().is_empty() && profile.model_list.contains('[') {
+            crate::model_suffix::migrate_model_list_with_suffixes(&profile.model_list)
+        } else {
+            (
+                profile.model_list.clone(),
+                serde_json::from_str(&profile.model_windows).unwrap_or_default(),
+            )
+        };
+    let entries =
+        crate::model_suffix::collect_catalog_entries(&model_list, &model_windows, &profile.model);
+    if !entries.iter().any(|entry| entry.suffix_window.is_some()) {
+        return Ok(config_text.to_string());
+    }
+
+    let fallback = parse_optional_positive_u64(&profile.context_window, "上下文大小")?;
+    let catalog_path = home.join(&catalog_relative);
+    if let Some(parent) = catalog_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let catalog_json = crate::model_suffix::build_model_catalog_json(&entries, fallback);
+    std::fs::write(&catalog_path, catalog_json)?;
+
+    let mut doc = parse_toml_document(config_text)?;
+    doc["model_catalog_json"] = toml_edit::value(catalog_relative);
+    Ok(normalize_optional_toml(doc))
+}
+
+fn sanitize_catalog_filename(id: &str) -> String {
+    id.chars()
+        .map(|char| {
+            if char.is_ascii_alphanumeric() || char == '-' || char == '_' {
+                char
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
 fn toml_value_is_subset(target: &toml_edit::Value, source: &toml_edit::Value) -> bool {
     match (target, source) {
         (toml_edit::Value::String(target), toml_edit::Value::String(source)) => {
@@ -1677,7 +1735,18 @@ fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<Strin
         };
     set_provider_id(&mut doc, &provider_id);
 
-    let model = relay_profile_model(profile);
+    let mut model = relay_profile_model(profile);
+    if model.trim().is_empty() && !profile.model_list.trim().is_empty() {
+        if let Some(first) = profile
+            .model_list
+            .split(['\r', '\n', ','])
+            .map(str::trim)
+            .find(|value| !value.is_empty())
+        {
+            model = crate::model_suffix::parse_model_suffix(first).0;
+        }
+    }
+    let (model, _) = crate::model_suffix::parse_model_suffix(&model);
     if !model.trim().is_empty() {
         doc["model"] = toml_edit::value(model.trim());
     }
@@ -1739,6 +1808,12 @@ fn complete_relay_profile_config(profile: &RelayProfile) -> anyhow::Result<Strin
 }
 
 pub fn normalize_relay_profile_for_storage(profile: &mut RelayProfile) -> anyhow::Result<()> {
+    if profile.model_windows.trim().is_empty() && profile.model_list.contains('[') {
+        let (clean_list, windows) =
+            crate::model_suffix::migrate_model_list_with_suffixes(&profile.model_list);
+        profile.model_list = clean_list;
+        profile.model_windows = serde_json::to_string(&windows).unwrap_or_default();
+    }
     if profile.relay_mode == RelayMode::Official && !profile.official_mix_api_key {
         profile.config_contents.clear();
         profile.auth_contents = official_auth_for_storage(&profile.auth_contents)?;
@@ -2238,6 +2313,75 @@ mod tests {
         assert!(profile.config_contents.contains("model_provider = \"ai\""));
         assert!(profile.config_contents.contains("[model_providers.ai]"));
         assert!(!profile.config_contents.contains("[model_providers.custom]"));
+    }
+
+    #[test]
+    fn apply_profile_generates_model_catalog_for_per_model_windows() {
+        let temp = tempfile::tempdir().unwrap();
+        let profile = RelayProfile {
+            id: "relay-a".to_string(),
+            relay_mode: crate::settings::RelayMode::RemoteRelay,
+            model: "deepseek-chat".to_string(),
+            model_list: "deepseek-chat\ndeepseek-reasoner".to_string(),
+            model_windows: serde_json::json!({
+                "deepseek-chat": "1M",
+                "deepseek-reasoner": "200000"
+            })
+            .to_string(),
+            config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+experimental_bearer_token = "sk-test"
+"#
+            .to_string(),
+            ..RelayProfile::default()
+        };
+
+        let result = apply_relay_profile_config_to_home_with_context(temp.path(), &profile, "")
+            .expect("apply config");
+        let config = std::fs::read_to_string(result.config_path).unwrap();
+        assert!(config.contains(r#"model_catalog_json = "model-catalogs/relay-a.json""#));
+        assert!(config.contains(r#"model = "deepseek-chat""#));
+        assert!(!config.contains("deepseek-chat["));
+
+        let catalog: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(temp.path().join("model-catalogs/relay-a.json")).unwrap(),
+        )
+        .unwrap();
+        let models = catalog["models"].as_array().unwrap();
+        assert_eq!(models[0]["slug"], "deepseek-chat");
+        assert_eq!(models[0]["context_window"], 1_000_000);
+        assert_eq!(models[1]["slug"], "deepseek-reasoner");
+        assert_eq!(models[1]["context_window"], 200_000);
+    }
+
+    #[test]
+    fn normalize_profile_migrates_legacy_model_suffixes() {
+        let mut profile = RelayProfile {
+            relay_mode: crate::settings::RelayMode::PureApi,
+            model_list: "deepseek-chat[1M]\ndeepseek-reasoner[200K]".to_string(),
+            config_contents: r#"model_provider = "codex123"
+
+[model_providers.codex123]
+name = "codex123"
+wire_api = "responses"
+requires_openai_auth = true
+base_url = "https://relay.example/v1"
+"#
+            .to_string(),
+            auth_contents: "{}\n".to_string(),
+            ..RelayProfile::default()
+        };
+
+        normalize_relay_profile_for_storage(&mut profile).unwrap();
+
+        assert_eq!(profile.model_list, "deepseek-chat\ndeepseek-reasoner");
+        assert!(profile.model_windows.contains("deepseek-chat"));
+        assert!(profile.model_windows.contains("1000000"));
     }
 }
 

@@ -39,6 +39,7 @@ After installation, you get two entry points:
 - **Remote-control-compatible relay mode**: stores the relay key in provider config, not in `auth.json` as `OPENAI_API_KEY`.
 - **Remote-control prerequisite diagnostics**: checks ChatGPT auth state, `auth_mode`, provider config, `base_url`, `wire_api`, `requires_openai_auth`, and bearer token.
 - **DeepSeek / Chat Completions compatibility**: local proxy converts Codex Responses requests to Chat Completions and converts upstream responses back.
+- **Per-model context windows**: each relay profile can assign context-window values per model and generate a Codex-readable `model_catalog_json`.
 - **Optional paste fix**: pasting rich text from Word and similar sources into the Codex composer can be forced to plain text to reduce accidental image/file attachment detection.
 - **macOS Computer Use cleanup**: periodically removes orphaned `SkyComputerUseClient` subprocesses to reduce memory pressure during long Codex sessions.
 - **codex123 pet source**: ship 10 Codex-compatible pet packages generated from open-source Noto Emoji image resources and install them into `~/.codex/pets`.
@@ -95,10 +96,10 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.9 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh <version> arm64
 ```
 
-The generated file is `dist/macos/codex123-0.2.9-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
+The generated file is `dist/macos/codex123-<version>-macos-arm64.dmg`. This first version uses ad-hoc signing and is not notarized with an Apple Developer ID.
 
 Windows packaging is kept as a development build path and is not updated by macOS fix releases. Because the developer uses a Mac, the Windows build currently only covers code and packaging scripts; launch behavior, CDP injection, and remote-control-compatible relay behavior have not been verified on a real Windows environment. Local Windows builds require the Rust MSVC toolchain, Node.js 22, and NSIS:
 
@@ -130,6 +131,12 @@ Recommended DeepSeek setup:
 4. When using remote-control-compatible relay mode, keep `wire_api = "responses"` and start Codex from the `codex123` entry point.
 
 The current compatibility layer includes DeepSeek reasoning effort mapping, `reasoning_content` streaming conversion, a fallback `reasoning_content` for assistant tool-call history, and basic tool-call history conversion. This improves DeepSeek stability for long sessions and tool use, but it does not guarantee that every DeepSeek relay will work; the relay still needs compatible Chat Completions, streaming, and tool-call behavior.
+
+## Per-Model Context Windows
+
+The provider detail page now shows a two-column model editor: model id and context window. Use the real upstream model id in the first column and a plain numeric window value such as `1000000` in the second column. Leave the window empty to use the provider-level default context window.
+
+When a provider is applied, `codex123` writes a generated `model_catalog_json` file under `~/.codex/model-catalogs/` and points `config.toml` to it. The old `deepseek-chat[1M]` suffix syntax is still migrated, but new configuration should use the separate window column so suffixes never leak into Codex's `model` field.
 
 ## codex123 Pet Import
 
@@ -169,6 +176,7 @@ Thanks also to [ccswitch](https://github.com/farion1231/cc-switch) for its local
 - Tauri + React manager with dark/light theme support.
 - External CDP injection. No `app.asar` patching and no DLL writes into the Codex installation.
 - Relay injection mode with multiple relay profiles, `codex123` provider configuration, and a one-click switch back to official ChatGPT login mode.
+- Per-model context windows that generate a dedicated catalog per provider instead of forcing all models to share one window value.
 - Traditional enhancement mode that selects plugin marketplace unlock or plugin entry unlock by Codex App version, plus forced plugin install, session delete, Markdown export, project move, Timeline, and more.
 - Independent user script management with startup injection.
 - Provider Sync to keep historical sessions visible after switching providers, with either the current `config.toml` target or a manually selected provider id.

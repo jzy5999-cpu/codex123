@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.2.18 - 2026-06-28
+
+- 选择性合入 CodexPlusPlus 上游 per-model context windows 思路：供应商模型列表支持为每个模型单独填写上下文窗口，并在应用配置时生成 `model_catalog_json`。
+- 管理工具的模型列表从单个文本框改为“模型名 / 上下文窗口”两列；从上游获取模型列表时会清空旧窗口值，避免误套用到新模型。
+- 保留旧 `model[1M]` 写法的迁移兼容，但保存后会拆成干净模型名和独立窗口映射，避免后缀泄漏到 Codex `model` 字段。
+- 本次仍只验证并发布 macOS Apple Silicon 包；Windows 版本和发布资产不随本次更新变更。
+
 ## 0.2.17 - 2026-06-28
 
 - 选择性合入 CodexPlusPlus 上游 macOS Computer Use 子进程清理思路：codex123 helper 运行期间会定期清理可能残留的 `SkyComputerUseClient` 进程，降低长时间使用 Computer Use 后的内存压力。

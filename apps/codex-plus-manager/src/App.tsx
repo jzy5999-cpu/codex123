@@ -58,6 +58,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { modelWindowRowsFromProfile, serializeModelWindowRows, type ModelWindowRow } from "@/model-windows";
 
 type Status = "ok" | "failed" | "not_implemented" | "not_checked" | string;
 
@@ -144,6 +145,7 @@ type RelayProfile = {
   contextWindow: string;
   autoCompactLimit: string;
   modelList: string;
+  modelWindows: string;
   userAgent: string;
 };
 
@@ -468,6 +470,7 @@ const defaultSettings: BackendSettings = {
       contextWindow: "",
       autoCompactLimit: "",
       modelList: "",
+      modelWindows: "",
       userAgent: "",
     },
   ],
@@ -2912,7 +2915,9 @@ function RelayProfileDetail({
       ? addRelayProfile(form, normalizedDraft)
       : updateRelayProfile(form, profile.id, normalizedDraft);
     onFormChange(next, !!normalizedDraft.linkedCcsProviderId);
-    if (isActive) {
+    if (isActive && next.relayProfilesEnabled) {
+      await actions.switchRelayProfile(next);
+    } else if (isActive) {
       await actions.saveRelayFile(
         "config",
         effectiveRelayConfigPreview(normalizedDraft, form, normalizedDraft),
@@ -3009,6 +3014,23 @@ function RelayProfileEditor({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const updateDraft = (patch: Partial<RelayProfile>) => {
     onProfileChange(applyRelayProfilePatchToFiles(profile, patch));
+  };
+  const modelWindowRows = useMemo(
+    () => modelWindowRowsFromProfile(profile.modelList, profile.modelWindows),
+    [profile.modelList, profile.modelWindows],
+  );
+  const updateModelWindowRows = (rows: ModelWindowRow[]) => {
+    updateDraft(serializeModelWindowRows(rows));
+  };
+  const updateModelWindowRow = (index: number, patch: Partial<ModelWindowRow>) => {
+    updateModelWindowRows(modelWindowRows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
+  };
+  const addModelWindowRow = () => {
+    updateModelWindowRows([...modelWindowRows, { model: "", window: "" }]);
+  };
+  const removeModelWindowRow = (index: number) => {
+    const next = modelWindowRows.filter((_, rowIndex) => rowIndex !== index);
+    updateModelWindowRows(next.length ? next : [{ model: "", window: "" }]);
   };
   return (
     <div className="relay-profile-editor">
@@ -3168,15 +3190,49 @@ function RelayProfileEditor({
         {showApiFields ? (
           <Field className="relay-field-model-list" label="模型列表">
             <div className="relay-model-list-tools">
-              <Textarea
-                value={profile.modelList}
-                onChange={(event) => updateDraft({ modelList: event.currentTarget.value })}
-                placeholder="每行一个模型，例如 qwen3-coder"
-              />
+              <div className="relay-model-window-table">
+                <div className="relay-model-window-head">
+                  <span>模型名</span>
+                  <span>上下文窗口</span>
+                  <span />
+                </div>
+                {modelWindowRows.map((row, index) => (
+                  <div className="relay-model-window-row" key={`${index}-${row.model}`}>
+                    <Input
+                      value={row.model}
+                      onChange={(event) => updateModelWindowRow(index, { model: event.currentTarget.value })}
+                      placeholder="例如 deepseek-chat"
+                    />
+                    <Input
+                      inputMode="numeric"
+                      value={row.window}
+                      onChange={(event) => updateModelWindowRow(index, { window: event.currentTarget.value.replace(/[^\d]/g, "") })}
+                      placeholder="留空默认，例如 1000000"
+                    />
+                    <Button
+                      aria-label="删除模型"
+                      disabled={modelWindowRows.length === 1 && !row.model && !row.window}
+                      onClick={() => removeModelWindowRow(index)}
+                      size="icon"
+                      type="button"
+                      variant="outline"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="relay-model-list-actions">
+                <Button onClick={addModelWindowRow} size="sm" type="button" variant="secondary">
+                  <Plus className="h-4 w-4" />
+                  添加模型
+                </Button>
+                <span className="relay-model-list-hint">上下文窗口按模型单独写入 catalog；留空则使用上方全局上下文大小。</span>
+              </div>
               <Button
                 onClick={async () => {
                   const models = await actions.fetchRelayProfileModels(profile);
-                  if (models?.length) updateDraft({ modelList: models.join("\n") });
+                  if (models?.length) updateDraft({ modelList: models.join("\n"), modelWindows: "" });
                 }}
                 size="sm"
                 type="button"
@@ -4388,6 +4444,7 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
             contextWindow: "",
             autoCompactLimit: "",
             modelList: "",
+            modelWindows: "",
             userAgent: "",
           },
         ];
@@ -4454,6 +4511,7 @@ function normalizeRelayProfile(profile: RelayProfile, defaultContextSelection = 
     contextWindow: profile.contextWindow || "",
     autoCompactLimit: profile.autoCompactLimit || "",
     modelList: profile.modelList || "",
+    modelWindows: profile.modelWindows || "",
     userAgent: profile.userAgent || "",
   };
   if (!normalized.configContents.trim() || !normalized.authContents.trim()) {
@@ -5023,6 +5081,7 @@ function createRelayProfile(settings: BackendSettings): RelayProfile {
     contextWindow: "",
     autoCompactLimit: "",
     modelList: "",
+    modelWindows: "",
     userAgent: "",
   };
   return withGeneratedRelayFiles(next);

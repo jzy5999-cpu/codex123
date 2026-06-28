@@ -39,6 +39,7 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 - **远控兼容中转模式**：中转 Key 写入 provider 配置，不写入 `auth.json` 的 `OPENAI_API_KEY`。
 - **远控前提诊断**：管理工具检查 ChatGPT 登录态、`auth_mode`、provider、`base_url`、`wire_api`、`requires_openai_auth` 和 bearer token。
 - **DeepSeek / Chat Completions 兼容**：本地代理把 Codex Responses 请求转换为 Chat Completions，再转换回 Responses 形态。
+- **按模型设置上下文窗口**：供应商模型列表可为每个模型单独填写上下文窗口，并生成 Codex 可读取的 `model_catalog_json`。
 - **可选粘贴修复**：从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，减少误识别为图片或文件附件。
 - **macOS Computer Use 清理**：运行期间定期清理可能残留的 `SkyComputerUseClient` 子进程，降低长时间使用后的内存压力。
 - **codex123 宠物源**：内置 10 个基于开源 Noto Emoji 资源生成的 Codex-compatible pet packages，一键安装到 `~/.codex/pets`。
@@ -126,6 +127,12 @@ Codex 当前主要按 OpenAI Responses API 形态请求模型，而 DeepSeek 官
 
 当前优化包括 DeepSeek reasoning effort 映射、`reasoning_content` 流式返回转换、assistant tool-call 历史的 `reasoning_content` 兜底，以及基础工具调用历史转换。该能力提高 DeepSeek 长会话和工具调用稳定性，但不保证所有 DeepSeek 中转站 100% 可用；中转站仍需要兼容 OpenAI Chat Completions、流式输出和工具调用。
 
+## 按模型设置上下文窗口
+
+管理工具的供应商详情页提供“模型名 / 上下文窗口”两列。模型名填写上游真实模型 ID，上下文窗口填写纯数字，例如 `1000000`；留空则使用该供应商上方的全局“上下文大小”。
+
+应用供应商配置时，`codex123` 会在 `~/.codex/model-catalogs/` 下生成对应的 `model_catalog_json`，并在 `config.toml` 中写入指针。旧的 `deepseek-chat[1M]` 写法仍会被迁移，但新配置建议使用独立窗口列，避免后缀进入 Codex 的 `model` 字段。
+
 ## codex123 宠物导入
 
 `codex123` 管理工具提供自带宠物源，用于把 Codex-compatible pet packages 安装到用户数据目录：
@@ -173,10 +180,10 @@ npm ci
 npm run vite:build
 cd ../..
 cargo build --release
-BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh 0.2.9 arm64
+BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh <version> arm64
 ```
 
-生成文件位于 `dist/macos/codex123-0.2.9-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
+生成文件位于 `dist/macos/codex123-<version>-macos-arm64.dmg`。第一版使用 ad-hoc 签名，不做 Apple Developer ID 公证；如果 macOS 首次打开提示无法验证开发者，请右键打开，或在“系统设置 -> 隐私与安全性”中允许打开。
 
 Windows 安装包目前只作为开发构建链路保留，不随 macOS 修复版更新。由于开发者使用 Mac 电脑，Windows 版目前只完成代码、打包脚本和 CI 构建链路，尚未确认在真实 Windows 环境中的启动、注入和远控兼容行为。本机 Windows 构建需要 Rust MSVC 工具链、Node.js 22 和 NSIS：
 
@@ -210,6 +217,7 @@ makensis /DVERSION=0.2.2 codex123.nsi
 - Tauri + React 管理工具，支持深色/浅色切换。
 - 外部 CDP 注入，不改 `app.asar`，不向 Codex 安装目录写入 DLL。
 - 中转注入模式：支持多个中转配置，写入 `codex123` provider，并可切回官方 ChatGPT 登录态。
+- 按模型上下文窗口：为同一供应商下的不同模型生成独立 catalog，避免所有模型共用一个窗口值。
 - 传统增强模式：按 Codex App 版本选择插件市场解锁或插件入口解锁，并支持特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
 - 用户脚本独立管理，可在启动时注入自定义脚本。
 - Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见；可使用当前 `config.toml` 自动目标，也可手动指定目标 provider。

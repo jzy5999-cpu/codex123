@@ -75,6 +75,12 @@ pub struct RelayProfile {
     pub model_insert_mode: RelayModelInsertMode,
     #[serde(rename = "modelList", default)]
     pub model_list: String,
+    #[serde(
+        rename = "modelWindows",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub model_windows: String,
     #[serde(rename = "userAgent", default)]
     pub user_agent: String,
 }
@@ -102,6 +108,7 @@ impl Default for RelayProfile {
             auto_compact_limit: String::new(),
             model_insert_mode: RelayModelInsertMode::Patch,
             model_list: String::new(),
+            model_windows: String::new(),
             user_agent: String::new(),
         }
     }
@@ -267,6 +274,7 @@ impl BackendSettings {
                 auto_compact_limit: String::new(),
                 model_insert_mode: RelayModelInsertMode::Patch,
                 model_list: String::new(),
+                model_windows: String::new(),
                 user_agent: String::new(),
             };
         }
@@ -312,6 +320,7 @@ impl BackendSettings {
             auto_compact_limit: String::new(),
             model_insert_mode: RelayModelInsertMode::Patch,
             model_list: String::new(),
+            model_windows: String::new(),
             user_agent: String::new(),
         }
     }
@@ -810,6 +819,7 @@ mod tests {
         assert!(profile.auto_compact_limit.is_empty());
         assert_eq!(profile.model_insert_mode, RelayModelInsertMode::Patch);
         assert!(profile.model_list.is_empty());
+        assert!(profile.model_windows.is_empty());
     }
 
     #[test]
@@ -828,7 +838,8 @@ mod tests {
                 "contextWindow":"200000",
                 "autoCompactLimit":"160000",
                 "modelInsertMode":"patch",
-                "modelList":"qwen3-coder\ndeepseek-coder"
+                "modelList":"qwen3-coder\ndeepseek-coder",
+                "modelWindows":"{\"qwen3-coder\":\"200000\"}"
             }"#,
         )
         .unwrap();
@@ -842,6 +853,7 @@ mod tests {
         assert_eq!(profile.auto_compact_limit, "160000");
         assert_eq!(profile.model_insert_mode, RelayModelInsertMode::Patch);
         assert_eq!(profile.model_list, "qwen3-coder\ndeepseek-coder");
+        assert_eq!(profile.model_windows, "{\"qwen3-coder\":\"200000\"}");
     }
 
     #[test]

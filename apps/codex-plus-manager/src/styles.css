@@ -846,9 +846,41 @@ body {
   gap: 8px;
 }
 
-.relay-model-list-tools textarea {
-  min-height: 112px;
-  resize: vertical;
+.relay-model-window-table {
+  display: grid;
+  gap: 8px;
+}
+
+.relay-model-window-head,
+.relay-model-window-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.relay-model-window-head {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.relay-model-window-row button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.relay-model-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.relay-model-list-hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .relay-model-list-tools button {
