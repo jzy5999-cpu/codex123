@@ -738,6 +738,36 @@ async fn launch_lifecycle_skips_active_relay_profile_when_supplier_config_disabl
 }
 
 #[tokio::test]
+async fn launch_lifecycle_starts_computer_use_cleanup_when_helper_is_running() {
+    let temp = tempfile::tempdir().unwrap();
+    let app_dir = temp.path().join("Codex.app");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    let status_store = StatusStore::new(temp.path().join("latest-status.json"));
+    let events = Arc::new(Mutex::new(Vec::<String>::new()));
+    let hooks = FakeHooks::new(events.clone()).with_computer_use_cleanup_recording();
+
+    let handle = launch_and_inject_with_hooks(
+        LaunchOptions {
+            app_dir: Some(app_dir),
+            debug_port: 9229,
+            helper_port: 57321,
+            status_store,
+        },
+        &hooks,
+    )
+    .await
+    .unwrap();
+    handle.wait_for_codex_exit().await.unwrap();
+
+    assert!(
+        events
+            .lock()
+            .unwrap()
+            .contains(&"computer-use-cleanup-watchdog".to_string())
+    );
+}
+
+#[tokio::test]
 async fn launch_lifecycle_tolerates_duplicate_context_parent_tables_without_applying_relay() {
     let temp = tempfile::tempdir().unwrap();
     let app_dir = temp.path().join("Codex.app");
@@ -1078,6 +1108,7 @@ struct FakeHooks {
     inject_error: Option<String>,
     injection_retry_attempts: u32,
     provider_sync_unsupported: bool,
+    record_computer_use_cleanup: bool,
 }
 
 impl FakeHooks {
@@ -1094,6 +1125,7 @@ impl FakeHooks {
             inject_error: None,
             injection_retry_attempts: 2,
             provider_sync_unsupported: false,
+            record_computer_use_cleanup: false,
         }
     }
 
@@ -1119,6 +1151,11 @@ impl FakeHooks {
 
     fn with_provider_sync_unsupported(mut self) -> Self {
         self.provider_sync_unsupported = true;
+        self
+    }
+
+    fn with_computer_use_cleanup_recording(mut self) -> Self {
+        self.record_computer_use_cleanup = true;
         self
     }
 
@@ -1216,6 +1253,13 @@ impl LaunchHooks for FakeHooks {
 
     async fn wait_before_injection_retry(&self) {
         self.event("wait-injection-retry");
+    }
+
+    async fn start_computer_use_cleanup_watchdog(&self) -> anyhow::Result<()> {
+        if self.record_computer_use_cleanup {
+            self.event("computer-use-cleanup-watchdog");
+        }
+        Ok(())
     }
 
     async fn write_status(&self, status: &str) {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.17 - 2026-06-28
+
+- 选择性合入 CodexPlusPlus 上游 macOS Computer Use 子进程清理思路：codex123 helper 运行期间会定期清理可能残留的 `SkyComputerUseClient` 进程，降低长时间使用 Computer Use 后的内存压力。
+- 复核启动链路，继续保持 codex123 启动 Codex 时不自动应用当前 relay profile，避免无意重写 `config.toml` / `auth.json`。
+- 本次仍只更新 macOS 相关功能路径；不合入 Windows installation-free watcher、上游赞助、交流群或二维码内容。
+
 ## 0.2.16 - 2026-06-24
 
 - 选择性合入 CodexPlusPlus 上游粘贴修复：管理工具和 Codex 内增强菜单新增“粘贴修复”开关，开启后从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，减少误识别为图片或文件附件。

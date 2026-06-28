@@ -40,6 +40,7 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 - **远控前提诊断**：管理工具检查 ChatGPT 登录态、`auth_mode`、provider、`base_url`、`wire_api`、`requires_openai_auth` 和 bearer token。
 - **DeepSeek / Chat Completions 兼容**：本地代理把 Codex Responses 请求转换为 Chat Completions，再转换回 Responses 形态。
 - **可选粘贴修复**：从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，减少误识别为图片或文件附件。
+- **macOS Computer Use 清理**：运行期间定期清理可能残留的 `SkyComputerUseClient` 子进程，降低长时间使用后的内存压力。
 - **codex123 宠物源**：内置 10 个基于开源 Noto Emoji 资源生成的 Codex-compatible pet packages，一键安装到 `~/.codex/pets`。
 - **外部增强注入**：继续使用 launcher + Chromium DevTools Protocol，不直接修改 Codex App。
 - **macOS 可安装 App**：提供 Apple Silicon DMG，包含静默入口和管理工具入口。

@@ -6,6 +6,7 @@ pub mod ccs_import;
 pub mod cdp;
 pub mod cli_wrapper;
 pub mod codex_sqlite;
+pub mod computer_use_cleanup;
 pub mod diagnostic_log;
 pub mod http_client;
 pub mod install;

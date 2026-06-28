@@ -192,6 +192,9 @@ pub trait LaunchHooks: Send + Sync {
     ) -> anyhow::Result<()> {
         Ok(())
     }
+    async fn start_computer_use_cleanup_watchdog(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
     async fn write_status(&self, status: &str);
     async fn wait_for_codex_exit(&self, launch: &CodexLaunch) -> anyhow::Result<()>;
     async fn shutdown_helper(&self, helper_port: u16);
@@ -203,6 +206,7 @@ pub struct DefaultLaunchHooks {
     child: Mutex<Option<Child>>,
     helper: Mutex<Option<HelperRuntime>>,
     bridge_watchdog: Mutex<Option<BridgeWatchdogRuntime>>,
+    computer_use_cleanup_watchdog: Mutex<Option<ComputerUseCleanupWatchdogRuntime>>,
 }
 
 struct HelperRuntime {
@@ -211,6 +215,11 @@ struct HelperRuntime {
 }
 
 struct BridgeWatchdogRuntime {
+    shutdown: tokio::sync::oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+struct ComputerUseCleanupWatchdogRuntime {
     shutdown: tokio::sync::oneshot::Sender<()>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -254,6 +263,9 @@ where
             .await?;
         launched = Some(launch.clone());
         keep_launched_on_error = true;
+        if helper_started {
+            hooks.start_computer_use_cleanup_watchdog().await?;
+        }
 
         let mut injection_degraded = false;
         if settings.enhancements_enabled {
@@ -566,6 +578,34 @@ impl LaunchHooks for DefaultLaunchHooks {
         Ok(())
     }
 
+    async fn start_computer_use_cleanup_watchdog(&self) -> anyhow::Result<()> {
+        #[cfg(target_os = "macos")]
+        {
+            let (shutdown, mut shutdown_rx) = tokio::sync::oneshot::channel();
+            let task = tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+                loop {
+                    tokio::select! {
+                        _ = &mut shutdown_rx => break,
+                        _ = interval.tick() => {
+                            crate::computer_use_cleanup::kill_orphaned_computer_use_processes();
+                        }
+                    }
+                }
+            });
+            if let Some(runtime) = self
+                .computer_use_cleanup_watchdog
+                .lock()
+                .await
+                .replace(ComputerUseCleanupWatchdogRuntime { shutdown, task })
+            {
+                let _ = runtime.shutdown.send(());
+                let _ = runtime.task.await;
+            }
+        }
+        Ok(())
+    }
+
     async fn write_status(&self, _status: &str) {}
 
     async fn wait_for_codex_exit(&self, launch: &CodexLaunch) -> anyhow::Result<()> {
@@ -586,6 +626,10 @@ impl LaunchHooks for DefaultLaunchHooks {
     }
 
     async fn shutdown_helper(&self, _helper_port: u16) {
+        if let Some(runtime) = self.computer_use_cleanup_watchdog.lock().await.take() {
+            let _ = runtime.shutdown.send(());
+            let _ = runtime.task.await;
+        }
         if let Some(runtime) = self.bridge_watchdog.lock().await.take() {
             let _ = runtime.shutdown.send(());
             let _ = runtime.task.await;
