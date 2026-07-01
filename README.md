@@ -174,7 +174,7 @@ macOS DMG 会安装 `/Applications/codex123.app` 和 `/Applications/codex123 管
 本机从源码构建 macOS 安装包：
 
 ```bash
-cd /Users/jiangzengyan/Downloads/codex/codex123
+cd ~/Downloads/codex123
 cd apps/codex-plus-manager
 npm ci
 npm run vite:build
@@ -285,6 +285,13 @@ experimental_bearer_token = "sk-..."
 - **特殊插件强制安装**：解除前端 `App unavailable` / 应用不可用导致的安装按钮禁用。
 
 管理工具会显示当前检测到的 Codex App 版本；注入脚本会根据版本自动选择旧版入口策略或新版市场策略。如果版本无法识别，会保守尝试两类策略，并写入 `plugin_unlock_strategy_selected` 诊断事件。
+
+0.2.19 起新增两个可选增强：
+
+- **强制中文界面**：让 Codex App 前端优先请求 `zh-CN`；默认关闭，开启或关闭后建议重启 codex123。
+- **插件列表自动展开**：自动点击插件页的“更多 / and N more”类折叠按钮，方便查看完整插件列表。
+
+Provider Sync 和会话项目移动也会兼容新版 Codex 的多 SQLite 数据库与 projectless 会话状态：优先选择包含 `threads` 表的会话库，且不会把无项目会话的 cwd 重新写回 SQLite。
 
 ## 自动更新与安装包
 

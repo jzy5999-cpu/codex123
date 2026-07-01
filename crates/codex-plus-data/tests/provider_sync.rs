@@ -290,6 +290,46 @@ fn provider_sync_repairs_sqlite_when_rollout_provider_matches_and_normalizes_pat
 }
 
 #[test]
+fn provider_sync_does_not_restore_cwd_for_projectless_threads() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path().join(".codex");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
+    write_rollout(
+        &home.join("archived_sessions/rollout-projectless.jsonl"),
+        "apigather",
+        "thread-1",
+        "C:/workspace",
+    );
+    create_state_db(&home.join("state_5.sqlite"));
+    fs::write(
+        home.join(".codex-global-state.json"),
+        json!({"projectless-thread-ids": ["thread-1"]}).to_string(),
+    )
+    .unwrap();
+
+    let result = run_provider_sync(Some(&home));
+
+    assert_eq!(result.status, ProviderSyncStatus::Synced);
+    assert_eq!(result.sqlite_rows_updated, 1);
+    let db = Connection::open(home.join("state_5.sqlite")).unwrap();
+    let row = db
+        .query_row(
+            "SELECT model_provider, has_user_event, cwd FROM threads WHERE id = 'thread-1'",
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(row, ("apigather".to_string(), 1, "C:/old".to_string()));
+}
+
+#[test]
 fn provider_sync_restores_rollout_first_line_when_later_step_fails() {
     let tmp = tempdir().unwrap();
     let home = tmp.path().join(".codex");

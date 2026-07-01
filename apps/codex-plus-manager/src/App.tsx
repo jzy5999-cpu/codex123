@@ -107,6 +107,8 @@ type BackendSettings = {
   codexAppPluginMarketplaceUnlock: boolean;
   codexAppForcePluginInstall: boolean;
   codexAppPasteFix: boolean;
+  codexAppForceChineseLocale: boolean;
+  codexAppPluginAutoExpand: boolean;
   codexGoalsEnabled: boolean;
   launchMode: LaunchMode;
   relayBaseUrl: string;
@@ -445,6 +447,8 @@ const defaultSettings: BackendSettings = {
   codexAppPluginMarketplaceUnlock: true,
   codexAppForcePluginInstall: true,
   codexAppPasteFix: false,
+  codexAppForceChineseLocale: false,
+  codexAppPluginAutoExpand: true,
   codexGoalsEnabled: false,
   launchMode: "patch",
   relayBaseUrl: "",
@@ -1989,11 +1993,37 @@ function EnhanceScreen({
                 <small>从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，避免被识别为图片或文件附件。</small>
               </span>
             </label>
+            <label className="switch-row">
+              <input
+                checked={form.codexAppForceChineseLocale}
+                disabled={!form.enhancementsEnabled}
+                onChange={(event) => onFormChange({ ...form, codexAppForceChineseLocale: event.currentTarget.checked })}
+                type="checkbox"
+              />
+              <span>
+                <strong>强制中文界面</strong>
+                <small>让注入脚本优先把 Codex App 前端语言请求为 zh-CN；开启或关闭后建议重启 codex123。</small>
+              </span>
+            </label>
+            <label className="switch-row">
+              <input
+                checked={form.codexAppPluginAutoExpand}
+                disabled={!form.enhancementsEnabled}
+                onChange={(event) => onFormChange({ ...form, codexAppPluginAutoExpand: event.currentTarget.checked })}
+                type="checkbox"
+              />
+              <span>
+                <strong>插件列表自动展开</strong>
+                <small>在插件页面自动点击“更多 / and N more”类折叠按钮，方便查看完整插件列表。</small>
+              </span>
+            </label>
           </div>
           <div className="feature-list">
             <FeatureItem title="会话删除" detail="在会话列表悬停显示删除按钮，并支持撤销。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Markdown 导出" detail="按本地 rollout 导出带时间戳的 Markdown。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="粘贴修复" detail="富文本粘贴时保留纯文本，减少误触附件上传。" enabled={form.enhancementsEnabled && form.codexAppPasteFix} />
+            <FeatureItem title="强制中文界面" detail="优先把 Codex App 前端语言请求为 zh-CN。" enabled={form.enhancementsEnabled && form.codexAppForceChineseLocale} />
+            <FeatureItem title="插件列表自动展开" detail="自动展开插件页的折叠列表。" enabled={form.enhancementsEnabled && form.codexAppPluginAutoExpand} />
             <FeatureItem title="项目移动" detail="把会话移动到普通对话或其他本地项目。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Timeline" detail="在对话右侧显示用户提问时间线。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="插件入口解锁" detail="按 Codex App 版本自动选择旧版入口策略。" enabled={pluginControlsEnabled && form.codexAppPluginEntryUnlock} />

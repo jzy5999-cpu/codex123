@@ -89,6 +89,20 @@ fn injection_script_exposes_paste_fix_toggle_and_handler() {
 }
 
 #[test]
+fn injection_script_exposes_locale_and_plugin_auto_expand_toggles() {
+    let script = assets::injection_script(57321);
+
+    assert!(script.contains("codexAppForceChineseLocale"));
+    assert!(script.contains("syncCodexForceChineseLocale"));
+    assert!(script.contains("Object.defineProperty(navigator, \"language\""));
+    assert!(script.contains("强制中文界面"));
+    assert!(script.contains("codexAppPluginAutoExpand"));
+    assert!(script.contains("syncCodexPluginAutoExpand"));
+    assert!(script.contains("expandCodexPluginLists"));
+    assert!(script.contains("插件列表自动展开"));
+}
+
+#[test]
 fn injection_script_skips_plugin_patch_work_in_relay_mode() {
     let script = assets::injection_script(57321);
 

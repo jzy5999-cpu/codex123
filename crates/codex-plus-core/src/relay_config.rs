@@ -929,6 +929,7 @@ fn write_codex_live_atomic(
     }
 
     if let Some(config_text) = config_text {
+        let config_text = normalize_config_text_for_write(config_text);
         if let Err(error) = crate::settings::atomic_write(&config_path, config_text.as_bytes()) {
             if auth_written {
                 let _ = restore_optional_file(&auth_path, old_auth.as_deref());
@@ -1002,6 +1003,7 @@ fn provider_table_exists(doc: &DocumentMut, provider_id: &str) -> bool {
 }
 
 fn parse_toml_document(contents: &str) -> anyhow::Result<DocumentMut> {
+    let contents = contents.trim_start_matches('\u{feff}');
     if contents.trim().is_empty() {
         Ok(DocumentMut::new())
     } else {
@@ -1009,6 +1011,10 @@ fn parse_toml_document(contents: &str) -> anyhow::Result<DocumentMut> {
             .parse::<DocumentMut>()
             .with_context(|| "config.toml TOML 解析失败")
     }
+}
+
+fn normalize_config_text_for_write(config_text: &str) -> String {
+    config_text.trim_start_matches('\u{feff}').to_string()
 }
 
 fn remove_provider_specific_common_keys(table: &mut dyn TableLike) {

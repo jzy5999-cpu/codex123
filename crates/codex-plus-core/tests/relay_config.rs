@@ -728,6 +728,22 @@ experimental_bearer_token = "sk-a"
 }
 
 #[test]
+fn apply_relay_files_accepts_and_removes_utf8_bom_from_config() {
+    let temp = tempfile::tempdir().unwrap();
+
+    apply_relay_files_to_home(
+        temp.path(),
+        "\u{feff}model_provider = \"custom\"\n[model_providers.custom]\nname = \"custom\"\nwire_api = \"responses\"\nrequires_openai_auth = true\nbase_url = \"https://relay-a.example/v1\"\nexperimental_bearer_token = \"sk-a\"\n",
+        r#"{"OPENAI_API_KEY":"sk-a"}"#,
+    )
+    .unwrap();
+
+    let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
+    assert!(!config.starts_with('\u{feff}'));
+    assert!(config.contains(r#"model_provider = "custom""#));
+}
+
+#[test]
 fn apply_relay_files_allows_empty_isolated_auth_json() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("auth.json"), r#"{"OPENAI_API_KEY":"old"}"#).unwrap();

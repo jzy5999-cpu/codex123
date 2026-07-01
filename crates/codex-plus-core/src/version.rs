@@ -1,4 +1,4 @@
-pub const VERSION: &str = "0.2.18";
+pub const VERSION: &str = "0.2.19";
 
 #[cfg(test)]
 mod tests {

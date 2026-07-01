@@ -90,7 +90,7 @@ The macOS DMG installs `/Applications/codex123.app` and `/Applications/codex123 
 Build a local macOS installer from source:
 
 ```bash
-cd /Users/jiangzengyan/Downloads/codex/codex123
+cd ~/Downloads/codex123
 cd apps/codex-plus-manager
 npm ci
 npm run vite:build
@@ -225,6 +225,13 @@ In traditional enhancement mode, plugin-related controls are split into three in
 - **Special plugin forced install**: lifts frontend `App unavailable` / unavailable-state disabled install buttons.
 
 The manager shows the detected Codex App version. The injected script then automatically chooses the legacy entry strategy or the modern marketplace strategy. If the version cannot be detected, codex123 conservatively tries both strategies and records a `plugin_unlock_strategy_selected` diagnostic event.
+
+Since 0.2.19, codex123 also includes two optional enhancements:
+
+- **Force Chinese UI**: asks the Codex App frontend to prefer `zh-CN`; disabled by default. Restart codex123 after enabling or disabling it.
+- **Plugin list auto-expand**: automatically clicks “more / and N more” style expand buttons on plugin pages so the full list is easier to inspect.
+
+Provider Sync and project move are also compatible with newer Codex multi-SQLite session storage and projectless state. codex123 prefers the SQLite database that contains the `threads` table and avoids writing cwd back for projectless threads.
 
 ## Updates and Packages
 

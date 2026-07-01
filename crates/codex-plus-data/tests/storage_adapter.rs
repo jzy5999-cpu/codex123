@@ -1,5 +1,5 @@
 use codex_plus_core::models::{DeleteStatus, SessionRef};
-use codex_plus_data::{BackupStore, SQLiteStorageAdapter};
+use codex_plus_data::{BackupStore, SQLiteStorageAdapter, move_codex_thread_workspace_from_paths};
 use rusqlite::Connection;
 use serde_json::json;
 use std::fs;
@@ -269,6 +269,34 @@ fn undo_fails_for_unknown_backup_table_without_executing_it() {
         .unwrap(),
         0
     );
+}
+
+#[test]
+fn undo_rejects_backup_file_paths_outside_thread_rollouts() {
+    let tmp = tempdir().unwrap();
+    let db_path = tmp.path().join("state_5.sqlite");
+    let rollout_path = tmp.path().join("rollout.jsonl");
+    fs::write(&rollout_path, "{\"type\":\"message\"}\n").unwrap();
+    create_codex_thread_db(&db_path, &rollout_path);
+    let backup_store = BackupStore::new(tmp.path().join("backups"));
+    let adapter = SQLiteStorageAdapter::new(&db_path, backup_store.clone());
+    let deleted = adapter.delete_local(&session("local:t1", "Codex Thread"));
+    let token = deleted.undo_token.as_deref().unwrap();
+    let backup_path = backup_store.path_for(token);
+    let mut backup: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&backup_path).unwrap()).unwrap();
+    backup["tables"]["__files"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"path": tmp.path().join("not-a-rollout.jsonl").to_string_lossy(), "content_b64": "b3duZWQ="}));
+    fs::write(&backup_path, serde_json::to_string_pretty(&backup).unwrap()).unwrap();
+
+    let restored = adapter.undo(token);
+
+    assert_eq!(restored.status, DeleteStatus::Failed);
+    assert_eq!(restored.undo_token.as_deref(), Some(token));
+    assert!(restored.message.contains("unexpected backup file path"));
+    assert!(!rollout_path.exists());
 }
 
 #[test]
@@ -544,4 +572,39 @@ fn archived_lookup_workspace_move_and_sort_keys_match_expected_shape() {
             ]
         })
     );
+}
+
+#[test]
+fn move_thread_workspace_from_paths_uses_database_that_contains_thread() {
+    let tmp = tempdir().unwrap();
+    let first_db = tmp.path().join("sqlite/codex-dev.db");
+    let second_db = tmp.path().join("sqlite/state.db");
+    fs::create_dir_all(first_db.parent().unwrap()).unwrap();
+    fs::write(
+        tmp.path().join("rollout.jsonl"),
+        "{\"type\":\"session_meta\",\"payload\":{\"id\":\"t1\",\"cwd\":\"/old/project\"}}\n",
+    )
+    .unwrap();
+    Connection::open(&first_db)
+        .unwrap()
+        .execute("CREATE TABLE inbox_items (id TEXT PRIMARY KEY)", [])
+        .unwrap();
+    create_codex_thread_db(&second_db, &tmp.path().join("rollout.jsonl"));
+
+    let moved = move_codex_thread_workspace_from_paths(
+        vec![first_db, second_db.clone()],
+        BackupStore::new(tmp.path().join("backups")),
+        &session("local:t1", "Codex Thread"),
+        "/new/project",
+    );
+
+    assert_eq!(moved["status"], "moved");
+    assert_eq!(moved["db_path"], second_db.to_string_lossy().to_string());
+    let db = Connection::open(second_db).unwrap();
+    let cwd: String = db
+        .query_row("SELECT cwd FROM threads WHERE id = 't1'", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(cwd, "/new/project");
 }

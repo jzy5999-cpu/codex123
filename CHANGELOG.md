@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.19 - 2026-07-01
+
+- 选择性合入 CodexPlusPlus `v1.2.23` - `v1.2.27` 中对 codex123 有价值的 macOS 相关修复：新版 Codex SQLite 多数据库场景下优先选择包含 `threads` 表的会话库，避免错误落到 inbox/automation 数据库。
+- Provider Sync 历史会话修复会识别 `projectless-thread-ids`，不再把无项目会话的 cwd 重新写回 SQLite；同时保留多 `session_meta` 同步和目标 provider 选择能力。
+- 会话项目移动兼容新版 Codex session 存储迁移：移动时会按候选数据库查找真实 thread，并在结果中记录命中的 `db_path`。
+- 删除/撤销恢复增加备份文件路径白名单校验，只允许恢复备份中对应 thread 的 rollout 文件，降低异常备份内容造成误写的风险。
+- 中转配置写入兼容带 UTF-8 BOM 的 `config.toml` 内容，写回时会移除 BOM。
+- 管理工具和 Codex 内增强菜单新增“强制中文界面”和“插件列表自动展开”开关；强制中文默认关闭，开启或关闭后建议重启 codex123。
+- 本次仍只更新并验证 macOS Apple Silicon 版；不合入上游赞助、交流群、二维码、Windows/RDP 或 installation-free 相关改动。
+
 ## 0.2.18 - 2026-06-28
 
 - 选择性合入 CodexPlusPlus 上游 per-model context windows 思路：供应商模型列表支持为每个模型单独填写上下文窗口，并在应用配置时生成 `model_catalog_json`。

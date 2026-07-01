@@ -1003,7 +1003,7 @@
     refreshCodexServiceTierControls();
   }
 
-  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch", codexAppVersion: "", codexAppPluginEntryUnlock: true, codexAppPluginMarketplaceUnlock: true, codexAppForcePluginInstall: true, codexAppPasteFix: false };
+  let codexPlusBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, launchMode: "patch", codexAppVersion: "", codexAppPluginEntryUnlock: true, codexAppPluginMarketplaceUnlock: true, codexAppForcePluginInstall: true, codexAppPasteFix: false, codexAppForceChineseLocale: false, codexAppPluginAutoExpand: true };
   let codexPlusBackendSettingsLoaded = false;
   let codexServiceTierState = {
     status: "loading",
@@ -1032,10 +1032,26 @@
     return urls.find((url) => url.includes("/assets/") && url.includes(namePart) && url.split("?")[0].endsWith(".js")) || "";
   }
 
+  async function codexAppAssetUrlFromScriptText(namePart) {
+    const scripts = Array.from(document.scripts || []).map((script) => script.src).filter(Boolean);
+    for (const src of scripts) {
+      if (!src.includes("/assets/") || !src.split("?")[0].endsWith(".js")) continue;
+      try {
+        const text = await fetch(src).then((response) => response.ok ? response.text() : "");
+        const escaped = namePart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = text.match(new RegExp(`["'](\\./assets/${escaped}[^"']+\\.js)["']`));
+        if (!match) continue;
+        return new URL(match[1], src).href;
+      } catch {
+      }
+    }
+    return "";
+  }
+
   async function loadCodexAppModule(namePart) {
     if (!codexServiceTierModulePromises.has(namePart)) {
       const promise = Promise.resolve().then(async () => {
-        const url = codexAppAssetUrl(namePart);
+        const url = codexAppAssetUrl(namePart) || await codexAppAssetUrlFromScriptText(namePart);
         if (!url) throw new Error(`未找到 Codex App asset: ${namePart}`);
         return await import(url);
       }).catch((error) => {
@@ -1582,6 +1598,8 @@
       codexPlusBackendSettings = { ...codexPlusBackendSettings, ...settings };
       codexPlusBackendSettingsLoaded = true;
       syncCodexPasteFixHandler();
+      syncCodexForceChineseLocale();
+      syncCodexPluginAutoExpand();
       refreshCodexPlusBackendToggles();
       return true;
     } catch (_) {
@@ -1610,6 +1628,8 @@
       codexPlusBackendSettings = { ...codexPlusBackendSettings, ...settings };
     } finally {
       syncCodexPasteFixHandler();
+      syncCodexForceChineseLocale();
+      syncCodexPluginAutoExpand();
       refreshCodexPlusBackendToggles();
     }
   }
@@ -1645,6 +1665,66 @@
       }
     };
     document.addEventListener("paste", window.__codexPasteFixHandler, true);
+  }
+
+  function syncCodexForceChineseLocale() {
+    const enabled = codexPlusBackendSettings.enhancementsEnabled !== false && codexPlusBackendSettings.codexAppForceChineseLocale === true;
+    if (!enabled || window.__codexForceChineseLocaleInstalled === true) return;
+    window.__codexForceChineseLocaleInstalled = true;
+    try {
+      Object.defineProperty(navigator, "language", { get: () => "zh-CN", configurable: true });
+    } catch {}
+    try {
+      Object.defineProperty(navigator, "languages", { get: () => ["zh-CN", "zh"], configurable: true });
+    } catch {}
+    try {
+      document.documentElement.lang = "zh-CN";
+    } catch {}
+    try {
+      const originalResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+      if (!Intl.DateTimeFormat.prototype.__codexForceChineseLocalePatched) {
+        Object.defineProperty(Intl.DateTimeFormat.prototype, "__codexForceChineseLocalePatched", { value: true });
+        Intl.DateTimeFormat.prototype.resolvedOptions = function (...args) {
+          const options = originalResolvedOptions.apply(this, args);
+          return { ...options, locale: "zh-CN" };
+        };
+      }
+    } catch {}
+    sendCodexPlusDiagnostic("force_chinese_locale_enabled", { locale: "zh-CN" });
+  }
+
+  function syncCodexPluginAutoExpand() {
+    const enabled = codexPlusBackendSettings.enhancementsEnabled !== false && codexPlusBackendSettings.codexAppPluginAutoExpand !== false;
+    if (!enabled) {
+      if (window.__codexPluginAutoExpandTimer) {
+        clearInterval(window.__codexPluginAutoExpandTimer);
+        window.__codexPluginAutoExpandTimer = null;
+      }
+      return;
+    }
+    if (window.__codexPluginAutoExpandTimer) return;
+    window.__codexPluginAutoExpandTimer = setInterval(expandCodexPluginLists, 1500);
+  }
+
+  function expandCodexPluginLists() {
+    if (codexPlusBackendSettings.enhancementsEnabled === false || codexPlusBackendSettings.codexAppPluginAutoExpand === false) return;
+    const isPluginSurface = /plugin|插件|marketplace|市场/i.test(`${location.pathname} ${document.title} ${document.body?.innerText?.slice(0, 4000) || ""}`);
+    if (!isPluginSurface) return;
+    const candidates = Array.from(document.querySelectorAll("button, [role='button']"))
+      .filter((button) => !isExtensionUiNode(button))
+      .filter((button) => button.offsetParent !== null)
+      .filter((button) => {
+        const text = (button.textContent || "").replace(/\s+/g, " ").trim();
+        if (!text || text.length > 80) return false;
+        return /(?:and\s+\d+\s+more|show\s+more|view\s+more|more\s+plugins|更多|展开|查看全部|显示全部|另外\s*\d+\s*个|还有\s*\d+\s*个)/i.test(text);
+      });
+    for (const button of candidates.slice(0, 8)) {
+      try {
+        if (button.dataset.codexPluginAutoExpanded === "true") continue;
+        button.dataset.codexPluginAutoExpanded = "true";
+        button.click();
+      } catch {}
+    }
   }
 
   function refreshCodexPlusBackendToggles() {
@@ -1858,6 +1938,14 @@
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">粘贴修复</div><div class="codex-plus-row-description">从 Word 等富文本来源粘贴到 Codex 输入框时只保留纯文本，避免被识别为图片或文件附件。</div></div>
               <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppPasteFix"><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">强制中文界面</div><div class="codex-plus-row-description">让 Codex App 前端优先使用 zh-CN；开启或关闭后建议重启 codex123。</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppForceChineseLocale"><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">插件列表自动展开</div><div class="codex-plus-row-description">自动点击插件页的更多 / and N more 折叠按钮，方便查看完整列表。</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-backend-setting="codexAppPluginAutoExpand"><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">会话项目移动</div><div class="codex-plus-row-description">在会话列表悬停显示移动按钮，可移动到普通对话或其他本地项目。</div></div>
@@ -3502,7 +3590,7 @@
   let chatsSortLastFetchAt = 0;
 
   async function codexStateApi() {
-    codexStateApiPromise = codexStateApiPromise || import("./assets/vscode-api-Dc9pX2Bc.js");
+    codexStateApiPromise = codexStateApiPromise || loadCodexAppModule("vscode-api-");
     const api = await codexStateApiPromise;
     if (typeof api.n !== "function") throw new Error("Codex 状态 API 不可用");
     return api.n;
@@ -4751,10 +4839,34 @@
     }
   }
 
+  async function clearThreadWritableRoots(ref) {
+    const variants = threadIdVariants(ref.session_id);
+    if (variants.length === 0) return;
+    const roots = objectGlobalState(await getCodexGlobalState("thread-writable-roots").catch(() => ({})));
+    const rootKeys = variants.filter((id) => Object.prototype.hasOwnProperty.call(roots, id));
+    if (rootKeys.length > 0) {
+      rootKeys.forEach((id) => delete roots[id]);
+      await setCodexGlobalState("thread-writable-roots", roots);
+    }
+  }
+
+  async function clearThreadProjectlessOutputDirectories(ref) {
+    const variants = threadIdVariants(ref.session_id);
+    if (variants.length === 0) return;
+    const dirs = objectGlobalState(await getCodexGlobalState("thread-projectless-output-directories").catch(() => ({})));
+    const dirKeys = variants.filter((id) => Object.prototype.hasOwnProperty.call(dirs, id));
+    if (dirKeys.length > 0) {
+      dirKeys.forEach((id) => delete dirs[id]);
+      await setCodexGlobalState("thread-projectless-output-directories", dirs);
+    }
+  }
+
   async function moveSessionToProjectless(ref) {
     if (!ref.session_id) throw new Error("未找到会话 ID");
     await setProjectlessThreadIds(ref, "add");
     await clearThreadWorkspaceHints(ref);
+    await clearThreadWritableRoots(ref);
+    await clearThreadProjectlessOutputDirectories(ref);
     const sortKey = await postJson("/thread-sort-key", ref).catch(() => ({}));
     return { status: "moved", session_id: ref.session_id, updated_at: sortKey?.updated_at, updated_at_ms: sortKey?.updated_at_ms, created_at_ms: sortKey?.created_at_ms };
   }
@@ -7710,6 +7822,7 @@
     installCodexServiceTierBadge();
     scheduleThreadScrollSync();
     refreshCodexModelWhitelistFromScan(window.__codexSessionDeleteLastMutations);
+    expandCodexPluginLists();
   }
 
   function runScanStep(step) {

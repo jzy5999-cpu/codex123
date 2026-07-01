@@ -397,9 +397,15 @@ impl BridgeDataService for LauncherDataService {
         session: SessionRef,
         target_cwd: String,
     ) -> anyhow::Result<Value> {
-        let adapter = self.storage_adapter();
+        let db_paths = self.candidate_db_paths();
+        let backup_store = codex_plus_data::BackupStore::new(self.backup_dir.clone());
         tokio::task::spawn_blocking(move || {
-            adapter.move_codex_thread_workspace(&session, &target_cwd)
+            codex_plus_data::move_codex_thread_workspace_from_paths(
+                db_paths,
+                backup_store,
+                &session,
+                &target_cwd,
+            )
         })
         .await
         .map_err(|error| anyhow::anyhow!("move thread workspace task failed: {error}"))
@@ -421,6 +427,22 @@ impl BridgeDataService for LauncherDataService {
 }
 
 impl LauncherDataService {
+    fn candidate_db_paths(&self) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+        paths.push(self.db_path.clone());
+        let home = self
+            .db_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(codex_plus_core::codex_sqlite::default_codex_home_dir);
+        for path in codex_plus_core::codex_sqlite::codex_session_db_paths_from_home(&home) {
+            if !paths.iter().any(|existing| existing == &path) {
+                paths.push(path);
+            }
+        }
+        paths
+    }
+
     fn storage_adapter(&self) -> codex_plus_data::SQLiteStorageAdapter {
         codex_plus_data::SQLiteStorageAdapter::new(
             self.db_path.clone(),

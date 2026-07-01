@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "codex-plus-core"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "codex-plus-data"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -390,7 +390,7 @@ dependencies = [
 
 [[package]]
 name = "codex-plus-launcher"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -404,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "codex-plus-manager"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "anyhow",
  "async-trait",
