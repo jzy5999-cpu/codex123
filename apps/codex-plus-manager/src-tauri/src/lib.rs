@@ -41,6 +41,8 @@ pub fn run() {
             commands::sync_providers_now,
             commands::load_ads,
             commands::refresh_script_market,
+            commands::remote_plugin_marketplace_status,
+            commands::repair_remote_plugin_marketplace,
             commands::refresh_petdex,
             commands::list_installed_pets,
             commands::install_petdex_pet,

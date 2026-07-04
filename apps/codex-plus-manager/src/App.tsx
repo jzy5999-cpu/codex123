@@ -39,6 +39,7 @@ import {
   Power,
   PowerOff,
   Plus,
+  Puzzle,
   RefreshCw,
   Rocket,
   Save,
@@ -344,6 +345,15 @@ type ScriptMarketResult = CommandResult<{
   user_scripts: UserScriptInventory;
 }>;
 
+type RemotePluginMarketplaceResult = CommandResult<{
+  codexHome: string;
+  marketplaceRoot: string | null;
+  configRegistered: boolean;
+  needsRepair: boolean;
+  pluginCount: number;
+  skillCount: number;
+}>;
+
 type PetdexPet = {
   slug: string;
   displayName: string;
@@ -502,6 +512,8 @@ export function App() {
   const [watcher, setWatcher] = useState<WatcherResult | null>(null);
   const [update, setUpdate] = useState<UpdateResult | null>(null);
   const [scriptMarket, setScriptMarket] = useState<ScriptMarketResult | null>(null);
+  const [remotePluginMarketplace, setRemotePluginMarketplace] = useState<RemotePluginMarketplaceResult | null>(null);
+  const [remotePluginMarketplaceBusy, setRemotePluginMarketplaceBusy] = useState(false);
   const [petdex, setPetdex] = useState<PetdexResult | null>(null);
   const [installedPets, setInstalledPets] = useState<InstalledPetsResult | null>(null);
   const [launchForm, setLaunchForm] = useState({
@@ -557,6 +569,28 @@ export function App() {
       setScriptMarket(result);
       setSettings((current) => (current ? { ...current, user_scripts: result.user_scripts } : current));
       if (!silent || !isSuccessStatus(result.status)) showResultNotice("脚本市场", result, { silentSuccess: true });
+    }
+  };
+
+  const refreshRemotePluginMarketplace = async (silent = false) => {
+    const result = await run(() => call<RemotePluginMarketplaceResult>("remote_plugin_marketplace_status"));
+    if (result) {
+      setRemotePluginMarketplace(result);
+      if (!silent || !isSuccessStatus(result.status)) showResultNotice("官方远端插件缓存", result, { silentSuccess: true });
+    }
+  };
+
+  const repairRemotePluginMarketplace = async () => {
+    if (remotePluginMarketplaceBusy) return;
+    setRemotePluginMarketplaceBusy(true);
+    try {
+      const result = await run(() => call<RemotePluginMarketplaceResult>("repair_remote_plugin_marketplace"));
+      if (result) {
+        setRemotePluginMarketplace(result);
+        showResultNotice("官方远端插件缓存", result);
+      }
+    } finally {
+      setRemotePluginMarketplaceBusy(false);
     }
   };
 
@@ -769,6 +803,10 @@ export function App() {
       await refreshLiveContextEntries(true);
     }
     if (next === "settings") await refreshSettings(true);
+    if (next === "enhance") {
+      await refreshSettings(true);
+      await refreshRemotePluginMarketplace(true);
+    }
     if (next === "userScripts") {
       await refreshSettings(true);
       await refreshScriptMarket(true);
@@ -1386,6 +1424,8 @@ export function App() {
       syncLiveContextEntries,
       importCcsProviders,
       refreshScriptMarket,
+      refreshRemotePluginMarketplace,
+      repairRemotePluginMarketplace,
       installMarketScript,
       setUserScriptEnabled,
       deleteUserScript,
@@ -1426,7 +1466,7 @@ export function App() {
       disableWatcher: () => watcherAction("disable_watcher"),
       toggleTheme: () => setTheme((current) => (current === "dark" ? "light" : "dark")),
     }),
-    [route, launchForm, settingsForm, settings, removeOwnedData, update, logs, diagnostics, theme, relayFiles],
+    [route, launchForm, settingsForm, settings, removeOwnedData, update, logs, diagnostics, theme, relayFiles, remotePluginMarketplaceBusy],
   );
   const hasUpdate = update?.updateAvailable === true;
 
@@ -1526,7 +1566,13 @@ export function App() {
             />
           ) : null}
           {route === "enhance" ? (
-            <EnhanceScreen form={settingsForm} onFormChange={setSettingsForm} actions={actions} />
+            <EnhanceScreen
+              form={settingsForm}
+              onFormChange={setSettingsForm}
+              remotePluginMarketplace={remotePluginMarketplace}
+              remotePluginMarketplaceBusy={remotePluginMarketplaceBusy}
+              actions={actions}
+            />
           ) : null}
           {route === "userScripts" ? <UserScriptsScreen settings={settings} market={scriptMarket} actions={actions} /> : null}
           {route === "pets" ? <PetsScreen petdex={petdex} installedPets={installedPets} actions={actions} /> : null}
@@ -1587,6 +1633,8 @@ type Actions = {
   syncLiveContextEntries: (settings: BackendSettings, silent?: boolean) => Promise<LiveContextEntriesResult | null>;
   importCcsProviders: () => Promise<void>;
   refreshScriptMarket: () => Promise<void>;
+  refreshRemotePluginMarketplace: () => Promise<void>;
+  repairRemotePluginMarketplace: () => Promise<void>;
   installMarketScript: (id: string) => Promise<void>;
   setUserScriptEnabled: (key: string, enabled: boolean) => Promise<void>;
   deleteUserScript: (key: string) => Promise<void>;
@@ -1905,10 +1953,14 @@ function RemoteRelayDiagnosticsPanel({
 function EnhanceScreen({
   form,
   onFormChange,
+  remotePluginMarketplace,
+  remotePluginMarketplaceBusy,
   actions,
 }: {
   form: BackendSettings;
   onFormChange: (value: BackendSettings) => void;
+  remotePluginMarketplace: RemotePluginMarketplaceResult | null;
+  remotePluginMarketplaceBusy: boolean;
   actions: Actions;
 }) {
   const pluginControlsEnabled = form.enhancementsEnabled && form.launchMode === "patch";
@@ -1944,6 +1996,27 @@ function EnhanceScreen({
             <Info className="h-4 w-4" />
             <span>检测到的 Codex App 版本：{form.codexAppVersion || "未检测到"}。codex123 会按版本选择插件入口或插件市场解锁策略。</span>
           </div>
+          <div className="hint-line">
+            <Puzzle className="h-4 w-4" />
+            <span>
+              官方远端插件缓存：
+              {remotePluginMarketplace?.marketplaceRoot
+                ? `已缓存 ${remotePluginMarketplace.pluginCount} 个插件 / ${remotePluginMarketplace.skillCount} 个技能`
+                : "未发现本地缓存"}
+              ，{remotePluginMarketplace?.configRegistered ? "已注册到 config.toml" : "尚未注册到 config.toml"}。
+            </span>
+          </div>
+          <Toolbar>
+            <Button disabled={remotePluginMarketplaceBusy} onClick={() => void actions.repairRemotePluginMarketplace()} variant="secondary">
+              {remotePluginMarketplaceBusy ? "正在处理…" : "释放并注册内置缓存"}
+            </Button>
+            <Button disabled={remotePluginMarketplaceBusy} onClick={() => void actions.refreshRemotePluginMarketplace()} variant="outline">
+              刷新缓存状态
+            </Button>
+          </Toolbar>
+          <p className="muted-text">
+            用于补齐 Product Design 等官方远端插件在 API/完整增强模式下的本地市场注册。注册后建议重启 codex123，并重新进入插件市场查看状态。
+          </p>
           <div className="feature-list">
             <label className="switch-row">
               <input
@@ -2008,13 +2081,13 @@ function EnhanceScreen({
             <label className="switch-row">
               <input
                 checked={form.codexAppPluginAutoExpand}
-                disabled={!form.enhancementsEnabled}
+                disabled={!pluginControlsEnabled}
                 onChange={(event) => onFormChange({ ...form, codexAppPluginAutoExpand: event.currentTarget.checked })}
                 type="checkbox"
               />
               <span>
                 <strong>插件列表自动展开</strong>
-                <small>在插件页面自动点击“更多 / and N more”类折叠按钮，方便查看完整插件列表。</small>
+                <small>在完整增强模式下自动点击“更多 / and N more”类折叠按钮，方便查看完整插件列表。</small>
               </span>
             </label>
           </div>
@@ -2023,7 +2096,7 @@ function EnhanceScreen({
             <FeatureItem title="Markdown 导出" detail="按本地 rollout 导出带时间戳的 Markdown。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="粘贴修复" detail="富文本粘贴时保留纯文本，减少误触附件上传。" enabled={form.enhancementsEnabled && form.codexAppPasteFix} />
             <FeatureItem title="强制中文界面" detail="优先把 Codex App 前端语言请求为 zh-CN。" enabled={form.enhancementsEnabled && form.codexAppForceChineseLocale} />
-            <FeatureItem title="插件列表自动展开" detail="自动展开插件页的折叠列表。" enabled={form.enhancementsEnabled && form.codexAppPluginAutoExpand} />
+            <FeatureItem title="插件列表自动展开" detail="自动展开插件页的折叠列表。" enabled={pluginControlsEnabled && form.codexAppPluginAutoExpand} />
             <FeatureItem title="项目移动" detail="把会话移动到普通对话或其他本地项目。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="Timeline" detail="在对话右侧显示用户提问时间线。" enabled={form.enhancementsEnabled} />
             <FeatureItem title="插件入口解锁" detail="按 Codex App 版本自动选择旧版入口策略。" enabled={pluginControlsEnabled && form.codexAppPluginEntryUnlock} />

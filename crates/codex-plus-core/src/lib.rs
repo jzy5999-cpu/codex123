@@ -16,6 +16,7 @@ pub mod model_suffix;
 pub mod models;
 pub mod paths;
 pub mod petdex;
+pub mod plugin_marketplace;
 pub mod ports;
 pub mod protocol_proxy;
 pub mod proxy;

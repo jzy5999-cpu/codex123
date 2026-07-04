@@ -909,9 +909,18 @@ fn write_codex_live_atomic(
     let config_path = home.join("config.toml");
     let auth_path = home.join("auth.json");
 
-    if let Some(config_text) = config_text {
-        validate_toml_config(config_text, &config_path)?;
-    }
+    let preserved_config_text = if let Some(config_text) = config_text {
+        let config_text = normalize_config_text_for_write(config_text);
+        let config_text =
+            crate::plugin_marketplace::preserve_openai_curated_remote_marketplace_config(
+                home,
+                &config_text,
+            )?;
+        validate_toml_config(&config_text, &config_path)?;
+        Some(config_text)
+    } else {
+        None
+    };
     if let Some(auth_bytes) = auth_bytes {
         validate_auth_json(auth_bytes, &auth_path)?;
     }
@@ -928,8 +937,7 @@ fn write_codex_live_atomic(
         auth_written = true;
     }
 
-    if let Some(config_text) = config_text {
-        let config_text = normalize_config_text_for_write(config_text);
+    if let Some(config_text) = preserved_config_text {
         if let Err(error) = crate::settings::atomic_write(&config_path, config_text.as_bytes()) {
             if auth_written {
                 let _ = restore_optional_file(&auth_path, old_auth.as_deref());

@@ -1694,7 +1694,7 @@
   }
 
   function syncCodexPluginAutoExpand() {
-    const enabled = codexPlusBackendSettings.enhancementsEnabled !== false && codexPlusBackendSettings.codexAppPluginAutoExpand !== false;
+    const enabled = codexPlusBackendSettings.enhancementsEnabled !== false && codexPlusBackendSettings.launchMode === "patch" && codexPlusBackendSettings.codexAppPluginAutoExpand !== false;
     if (!enabled) {
       if (window.__codexPluginAutoExpandTimer) {
         clearInterval(window.__codexPluginAutoExpandTimer);
@@ -1707,7 +1707,7 @@
   }
 
   function expandCodexPluginLists() {
-    if (codexPlusBackendSettings.enhancementsEnabled === false || codexPlusBackendSettings.codexAppPluginAutoExpand === false) return;
+    if (codexPlusBackendSettings.enhancementsEnabled === false || codexPlusBackendSettings.launchMode !== "patch" || codexPlusBackendSettings.codexAppPluginAutoExpand === false) return;
     const isPluginSurface = /plugin|插件|marketplace|市场/i.test(`${location.pathname} ${document.title} ${document.body?.innerText?.slice(0, 4000) || ""}`);
     if (!isPluginSurface) return;
     const candidates = Array.from(document.querySelectorAll("button, [role='button']"))

@@ -293,6 +293,13 @@ experimental_bearer_token = "sk-..."
 
 Provider Sync 和会话项目移动也会兼容新版 Codex 的多 SQLite 数据库与 projectless 会话状态：优先选择包含 `threads` 表的会话库，且不会把无项目会话的 cwd 重新写回 SQLite。
 
+0.2.20 起，管理工具“增强功能”页新增 **官方远端插件缓存**：
+
+- 点击 **释放并注册内置缓存** 会把 codex123 内置的 `openai-curated-remote` 快照释放到 `~/.codex/.tmp/plugins-remote`，并写入 `~/.codex/config.toml` 的 `[marketplaces.openai-curated-remote]`。
+- 该能力用于补齐 Product Design 等官方远端插件的本地市场状态，减少切换供应商后又显示“未安装”的问题。
+- codex123 只能维护本地市场注册和缓存状态；具体插件是否可用仍取决于 Codex / OpenAI 官方账号权限和当前功能状态。
+- 注册后建议重启 codex123，再进入 Codex 插件市场查看状态。
+
 ## 自动更新与安装包
 
 codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包；其中 Windows 安装包仅作为开发构建提供，尚未实机验证。

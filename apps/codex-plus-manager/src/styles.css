@@ -1489,6 +1489,13 @@ body {
   line-height: 1.45;
 }
 
+.muted-text {
+  margin: 6px 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .hint-line svg {
   flex: 0 0 auto;
   margin-top: 1px;

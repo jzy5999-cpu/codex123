@@ -139,6 +139,17 @@ pub struct RelayProfileModelsPayload {
     pub endpoint: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePluginMarketplacePayload {
+    pub codex_home: String,
+    pub marketplace_root: Option<String>,
+    pub config_registered: bool,
+    pub needs_repair: bool,
+    pub plugin_count: usize,
+    pub skill_count: usize,
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveRelayFileRequest {
@@ -837,6 +848,121 @@ pub async fn refresh_script_market() -> CommandResult<ScriptMarketPayload> {
             failed_script_market_payload(&format!("脚本市场加载失败：{error}")),
         ),
     }
+}
+
+#[tauri::command]
+pub fn remote_plugin_marketplace_status() -> CommandResult<RemotePluginMarketplacePayload> {
+    let home = codex_plus_core::relay_config::default_codex_home_dir();
+    let status =
+        codex_plus_core::plugin_marketplace::openai_curated_remote_marketplace_status(&home);
+    let (plugin_count, skill_count) =
+        remote_plugin_marketplace_counts(status.marketplace_root.as_deref());
+    ok(
+        if status.needs_repair() {
+            "官方远端插件缓存需要释放或注册。"
+        } else {
+            "官方远端插件缓存已可用。"
+        },
+        RemotePluginMarketplacePayload {
+            codex_home: home.to_string_lossy().to_string(),
+            marketplace_root: status
+                .marketplace_root
+                .as_ref()
+                .map(|path| path.to_string_lossy().to_string()),
+            config_registered: status.config_registered,
+            needs_repair: status.needs_repair(),
+            plugin_count,
+            skill_count,
+        },
+    )
+}
+
+#[tauri::command]
+pub fn repair_remote_plugin_marketplace() -> CommandResult<RemotePluginMarketplacePayload> {
+    let home = codex_plus_core::relay_config::default_codex_home_dir();
+    match codex_plus_core::plugin_marketplace::ensure_openai_curated_remote_marketplace_available(
+        &home,
+    ) {
+        Ok(result) => {
+            let status =
+                codex_plus_core::plugin_marketplace::openai_curated_remote_marketplace_status(
+                    &home,
+                );
+            let (plugin_count, skill_count) =
+                remote_plugin_marketplace_counts(status.marketplace_root.as_deref());
+            ok(
+                if result.initialized {
+                    "已释放并注册内置官方远端插件缓存。"
+                } else if result.configured {
+                    "已注册官方远端插件缓存。"
+                } else {
+                    "官方远端插件缓存已可用，无需修复。"
+                },
+                RemotePluginMarketplacePayload {
+                    codex_home: home.to_string_lossy().to_string(),
+                    marketplace_root: status
+                        .marketplace_root
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().to_string()),
+                    config_registered: status.config_registered,
+                    needs_repair: status.needs_repair(),
+                    plugin_count,
+                    skill_count,
+                },
+            )
+        }
+        Err(error) => {
+            let status =
+                codex_plus_core::plugin_marketplace::openai_curated_remote_marketplace_status(
+                    &home,
+                );
+            let (plugin_count, skill_count) =
+                remote_plugin_marketplace_counts(status.marketplace_root.as_deref());
+            failed(
+                &format!("官方远端插件缓存修复失败：{error}"),
+                RemotePluginMarketplacePayload {
+                    codex_home: home.to_string_lossy().to_string(),
+                    marketplace_root: status
+                        .marketplace_root
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().to_string()),
+                    config_registered: status.config_registered,
+                    needs_repair: status.needs_repair(),
+                    plugin_count,
+                    skill_count,
+                },
+            )
+        }
+    }
+}
+
+fn remote_plugin_marketplace_counts(root: Option<&Path>) -> (usize, usize) {
+    let Some(root) = root else {
+        return (0, 0);
+    };
+    let marketplace_path = root
+        .join(".agents")
+        .join("plugins")
+        .join("marketplace.json");
+    let plugin_count = fs::read_to_string(&marketplace_path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| value.get("plugins").and_then(Value::as_array).cloned())
+        .map(|plugins| plugins.len())
+        .unwrap_or(0);
+    let plugin_root = root.join("plugins");
+    let skill_count = fs::read_dir(plugin_root)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().join(".codex-plugin").is_dir())
+        .map(|entry| entry.path().join("skills"))
+        .filter_map(|skills| fs::read_dir(skills).ok())
+        .flat_map(|entries| entries.filter_map(Result::ok))
+        .filter(|entry| entry.path().is_dir())
+        .count();
+    (plugin_count, skill_count)
 }
 
 #[tauri::command]

@@ -233,6 +233,13 @@ Since 0.2.19, codex123 also includes two optional enhancements:
 
 Provider Sync and project move are also compatible with newer Codex multi-SQLite session storage and projectless state. codex123 prefers the SQLite database that contains the `threads` table and avoids writing cwd back for projectless threads.
 
+Since 0.2.20, the Enhancements page also includes **Official remote plugin cache**:
+
+- **Extract and register embedded cache** writes the embedded `openai-curated-remote` snapshot to `~/.codex/.tmp/plugins-remote` and registers `[marketplaces.openai-curated-remote]` in `~/.codex/config.toml`.
+- This helps preserve the local marketplace state for official remote plugins such as Product Design after switching providers.
+- codex123 only maintains the local cache and marketplace registration. Actual plugin availability still depends on Codex / OpenAI account entitlements and the current official feature state.
+- Restart codex123 after registration, then reopen the Codex plugin marketplace.
+
 ## Updates and Packages
 
 codex123 publishes installers through GitHub Releases. Windows builds an NSIS x64 installer, while macOS builds an Apple Silicon arm64 DMG. The Windows installer is currently a development build and has not been real-machine verified.

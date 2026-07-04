@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.20 - 2026-07-04
+
+- 选择性合入 CodexPlusPlus `v1.2.29` - `v1.2.31` 的官方远端插件缓存思路：新增内置 `openai-curated-remote` 插件市场快照，可在管理工具“增强功能”页释放并注册，用于补齐 Product Design 等远端插件的本地市场状态。
+- 供应商配置写入 `config.toml` 时会保留已注册的 `openai-curated-remote` marketplace，避免切换供应商后 Product Design 等插件重新显示为未安装。
+- 管理工具新增“官方远端插件缓存”状态展示和“释放并注册内置缓存”按钮，显示缓存路径、插件数量、技能数量和注册状态。
+- 插件列表自动展开改为仅在完整增强 `patch` 模式运行；兼容增强 / 远控中转模式下不会自动点击插件页按钮。
+- 本次仍只更新并验证 macOS Apple Silicon 版；不合入上游赞助、交流群、二维码、Windows/RDP 或 mobile relay 相关改动。
+
 ## 0.2.19 - 2026-07-01
 
 - 选择性合入 CodexPlusPlus `v1.2.23` - `v1.2.27` 中对 codex123 有价值的 macOS 相关修复：新版 Codex SQLite 多数据库场景下优先选择包含 `threads` 表的会话库，避免错误落到 inbox/automation 数据库。
