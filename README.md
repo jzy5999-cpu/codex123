@@ -300,6 +300,12 @@ Provider Sync 和会话项目移动也会兼容新版 Codex 的多 SQLite 数据
 - codex123 只能维护本地市场注册和缓存状态；具体插件是否可用仍取决于 Codex / OpenAI 官方账号权限和当前功能状态。
 - 注册后建议重启 codex123，再进入 Codex 插件市场查看状态。
 
+0.2.21 起，codex123 对该缓存链路增加了更严格的回归校验：
+
+- 内置快照必须包含 Product Design 的远端安装元数据 `.codex-remote-plugin-install.json` 和插件 manifest，避免缓存存在但状态识别不完整。
+- 切换供应商写入 `config.toml` 时会继续保留已注册的 `[marketplaces.openai-curated-remote]`，并兼容带 UTF-8 BOM 的配置文件。
+- 本轮没有合入上游赞助、广告、Windows/RDP 或未在 codex123 中启用的图片覆盖层 / Stepwise 独立注入改动。
+
 ## 自动更新与安装包
 
 codex123 通过 GitHub Release 发布安装包。目前发布 macOS Apple Silicon arm64 DMG 和 Windows x64 NSIS 安装包；其中 Windows 安装包仅作为开发构建提供，尚未实机验证。

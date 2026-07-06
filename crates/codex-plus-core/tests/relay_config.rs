@@ -744,6 +744,58 @@ fn apply_relay_files_accepts_and_removes_utf8_bom_from_config() {
 }
 
 #[test]
+fn apply_relay_files_preserves_cached_remote_plugin_marketplace_with_bom() {
+    let temp = tempfile::tempdir().unwrap();
+    let remote_root = temp.path().join(".tmp").join("plugins-remote");
+    std::fs::create_dir_all(remote_root.join(".agents").join("plugins")).unwrap();
+    std::fs::create_dir_all(
+        remote_root
+            .join("plugins")
+            .join("product-design")
+            .join(".codex-plugin"),
+    )
+    .unwrap();
+    std::fs::write(
+        remote_root
+            .join(".agents")
+            .join("plugins")
+            .join("marketplace.json"),
+        r#"{"name":"openai-curated-remote","plugins":[{"name":"product-design","path":"./plugins/product-design"}]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        remote_root
+            .join("plugins")
+            .join("product-design")
+            .join(".codex-plugin")
+            .join("plugin.json"),
+        r#"{"name":"product-design"}"#,
+    )
+    .unwrap();
+
+    apply_relay_files_to_home(
+        temp.path(),
+        "\u{feff}model_provider = \"custom\"\n[model_providers.custom]\nname = \"custom\"\nwire_api = \"responses\"\nrequires_openai_auth = true\nbase_url = \"https://relay-a.example/v1\"\nexperimental_bearer_token = \"sk-a\"\n",
+        r#"{"OPENAI_API_KEY":"sk-a"}"#,
+    )
+    .unwrap();
+
+    let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
+    assert!(!config.starts_with('\u{feff}'));
+    let parsed = config.parse::<toml_edit::DocumentMut>().unwrap();
+    assert_eq!(
+        parsed["marketplaces"]["openai-curated-remote"]["source_type"].as_str(),
+        Some("local")
+    );
+    assert_eq!(
+        parsed["marketplaces"]["openai-curated-remote"]["source"].as_str(),
+        Some(format!(r"\\?\{}", remote_root.display()).as_str())
+    );
+    assert!(config.contains(r#"model_provider = "custom""#));
+    assert!(config.contains("[model_providers.custom]"));
+}
+
+#[test]
 fn apply_relay_files_allows_empty_isolated_auth_json() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("auth.json"), r#"{"OPENAI_API_KEY":"old"}"#).unwrap();

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.21 - 2026-07-06
+
+- 依据 CodexPlusPlus `v1.2.32` 复核官方远端插件缓存：确认内置 `openai-curated-remote` 快照已与上游一致，并新增 Product Design 远端安装元数据回归测试，避免后续打包遗漏 `.codex-remote-plugin-install.json`。
+- 新增供应商配置写入回归测试：带 UTF-8 BOM 的 `config.toml` 写回时会移除 BOM，并继续保留已缓存的 `[marketplaces.openai-curated-remote]` 注册，减少切换供应商后官方远端插件状态丢失。
+- 本轮不合入上游赞助、广告、Windows/RDP、命令包装器移除或未在 codex123 中启用的图片覆盖层/Stepwise 独立注入改动；仍只更新并验证 macOS Apple Silicon 版。
+
 ## 0.2.20 - 2026-07-04
 
 - 选择性合入 CodexPlusPlus `v1.2.29` - `v1.2.31` 的官方远端插件缓存思路：新增内置 `openai-curated-remote` 插件市场快照，可在管理工具“增强功能”页释放并注册，用于补齐 Product Design 等远端插件的本地市场状态。

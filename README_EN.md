@@ -240,6 +240,12 @@ Since 0.2.20, the Enhancements page also includes **Official remote plugin cache
 - codex123 only maintains the local cache and marketplace registration. Actual plugin availability still depends on Codex / OpenAI account entitlements and the current official feature state.
 - Restart codex123 after registration, then reopen the Codex plugin marketplace.
 
+Since 0.2.21, codex123 also adds stricter regression coverage for this cache path:
+
+- The embedded snapshot must include Product Design remote install metadata `.codex-remote-plugin-install.json` and its plugin manifest, so the cache is not present but incomplete.
+- Provider switches that rewrite `config.toml` keep the registered `[marketplaces.openai-curated-remote]` table and tolerate UTF-8 BOM input.
+- This release does not import upstream sponsor, ad, Windows/RDP, or image-overlay / standalone Stepwise injection changes that are not enabled in codex123.
+
 ## Updates and Packages
 
 codex123 publishes installers through GitHub Releases. Windows builds an NSIS x64 installer, while macOS builds an Apple Silicon arm64 DMG. The Windows installer is currently a development build and has not been real-machine verified.

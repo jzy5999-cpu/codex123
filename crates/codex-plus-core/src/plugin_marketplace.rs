@@ -808,6 +808,35 @@ mod tests {
                 .join("plugin.json")
                 .is_file()
         );
+        let remote_install: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                root.join("plugins")
+                    .join("product-design")
+                    .join(".codex-remote-plugin-install.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(remote_install["schema_version"], 1);
+        assert_eq!(
+            remote_install["remote_plugin_id"].as_str(),
+            Some("Plugin_fa77aec24fc08191bc6e57f377126d76")
+        );
+        let plugin_manifest: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                root.join("plugins")
+                    .join("product-design")
+                    .join(".codex-plugin")
+                    .join("plugin.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(plugin_manifest["name"].as_str(), Some("product-design"));
+        assert_eq!(
+            plugin_manifest["interface"]["displayName"].as_str(),
+            Some("Product Design")
+        );
         let config = std::fs::read_to_string(home.join("config.toml")).unwrap();
         let parsed = config.parse::<DocumentMut>().unwrap();
         assert_eq!(
