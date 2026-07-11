@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.22 - 2026-07-11
+
+- 选择性合入 CodexPlusPlus `v1.2.34` 的 macOS 启动兼容：找不到独立 `Codex.app` 时可回退识别 `ChatGPT.app`，并从 `Info.plist` 读取真实可执行文件名；仍优先使用 Codex App，保持外部 launcher + CDP 注入方案。
+- 模型目录在当前中转 profile 没有模型时继续读取 `config.toml`；注入桥接返回 `not_configured` 时也会从管理工具中转配置回退读取模型列表。
+- 修复带版本路径的供应商模型接口，例如 `/api/coding/v3` 现在请求 `/api/coding/v3/models`，不再错误追加 `/v1/models`。
+- 新版 Codex 缺少旧 app-server 模块时，模型注入诊断在有限重试后安静降级，避免约每 120ms 重复记录失败；其他模型白名单注入层继续工作。
+- 本轮继续沿用 codex123 已验证的官方远端插件缓存配置保护；未引入上游 `role-specific-plugins`、赞助、广告、交流群、微信桥接、许可证变更或 Windows 发布内容。
+
 ## 0.2.21 - 2026-07-06
 
 - 依据 CodexPlusPlus `v1.2.32` 复核官方远端插件缓存：确认内置 `openai-curated-remote` 快照已与上游一致，并新增 Product Design 远端安装元数据回归测试，避免后续打包遗漏 `.codex-remote-plugin-install.json`。

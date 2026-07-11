@@ -138,6 +138,43 @@ fn app_paths_find_macos_codex_app_prefers_first_search_root_and_known_names() {
 }
 
 #[test]
+fn app_paths_prefers_codex_app_over_chatgpt_app() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("Applications");
+    let codex = root.join("Codex.app");
+    let chatgpt = root.join("ChatGPT.app");
+    std::fs::create_dir_all(&codex).unwrap();
+    std::fs::create_dir_all(&chatgpt).unwrap();
+
+    assert_eq!(
+        find_macos_codex_app(&[root]).as_deref(),
+        Some(codex.as_path())
+    );
+}
+
+#[test]
+fn app_paths_finds_chatgpt_bundle_and_uses_declared_executable() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("Applications");
+    let app = root.join("ChatGPT.app");
+    let contents = app.join("Contents");
+    let macos = contents.join("MacOS");
+    std::fs::create_dir_all(&macos).unwrap();
+    std::fs::write(
+        contents.join("Info.plist"),
+        r#"<plist><dict><key>CFBundleExecutable</key><string>ChatGPT</string></dict></plist>"#,
+    )
+    .unwrap();
+    std::fs::write(macos.join("ChatGPT"), "").unwrap();
+
+    assert_eq!(
+        find_macos_codex_app(&[root]).as_deref(),
+        Some(app.as_path())
+    );
+    assert_eq!(build_codex_executable(&app), macos.join("ChatGPT"));
+}
+
+#[test]
 fn app_paths_build_macos_bundle_executable() {
     let app = PathBuf::from("/Applications/OpenAI Codex.app");
 

@@ -123,6 +123,46 @@ async fn model_catalog_uses_active_relay_profile_model_list_for_display() {
 }
 
 #[tokio::test]
+async fn model_catalog_appends_models_to_versioned_base_url() {
+    let temp = tempfile::tempdir().unwrap();
+    let server = spawn_models_server(json!({
+        "data": [{"id": "doubao-seed-code-preview"}]
+    }));
+    let versioned_base = format!("{}/api/coding/v3", server.base_url);
+    write_config(
+        temp.path(),
+        &format!(
+            r#"
+model = "doubao-seed-code-preview"
+model_provider = "ark"
+
+[model_providers.ark]
+name = "ARK"
+base_url = "{versioned_base}"
+experimental_bearer_token = "test-key"
+"#
+        ),
+    );
+
+    let result = read_codex_model_catalog_from_home(
+        temp.path(),
+        &HashMap::new(),
+        reqwest::Client::builder().no_proxy().build().unwrap(),
+    )
+    .await;
+
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["models"], json!(["doubao-seed-code-preview"]));
+    assert_eq!(
+        result["sources"][0]["endpoint"],
+        format!("{versioned_base}/models")
+    );
+    let requests = server.finish();
+    assert_eq!(requests[0].path, "/api/coding/v3/models");
+    assert_eq!(requests[0].authorization, "Bearer test-key");
+}
+
+#[tokio::test]
 async fn model_catalog_uses_single_provider_when_root_model_provider_is_absent() {
     let temp = tempfile::tempdir().unwrap();
     let server = spawn_models_server(json!({

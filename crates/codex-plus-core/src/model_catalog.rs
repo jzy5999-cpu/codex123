@@ -39,7 +39,15 @@ pub async fn read_codex_model_catalog() -> Value {
     let settings_path = crate::paths::default_settings_path();
     if settings_path.exists() {
         if let Ok(settings) = SettingsStore::new(settings_path).load() {
-            return relay_profile_model_catalog_value(&home, &settings.active_relay_profile());
+            let catalog =
+                relay_profile_model_catalog_value(&home, &settings.active_relay_profile());
+            if catalog
+                .get("models")
+                .and_then(Value::as_array)
+                .is_some_and(|models| !models.is_empty())
+            {
+                return catalog;
+            }
         }
     }
     let env = std::env::vars().collect::<HashMap<_, _>>();
@@ -567,7 +575,7 @@ fn models_endpoint(base_url: &str) -> String {
     if cleaned.ends_with("/models") {
         return cleaned;
     }
-    if cleaned.ends_with("/v1") {
+    if crate::protocol_proxy::has_version_suffix(&cleaned) {
         return format!("{cleaned}/models");
     }
     format!("{cleaned}/v1/models")

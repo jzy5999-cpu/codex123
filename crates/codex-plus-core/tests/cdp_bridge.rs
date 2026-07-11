@@ -246,6 +246,10 @@ fn injection_script_unlocks_custom_model_catalog() {
     assert!(script.contains("patchStatsigModelDynamicConfig"));
     assert!(script.contains("patchModelJsonResponse"));
     assert!(script.contains("installAppServerModelRequestPatch"));
+    assert!(script.contains("appServerModelRequestPatchMaxMisses = 8"));
+    assert!(script.contains("model_app_server_request_patch_skipped"));
+    assert!(script.contains("postJson(\"/settings/get\", {})"));
+    assert!(script.contains("fallbackModels"));
     assert!(script.contains("list-models-for-host"));
     assert!(script.contains("appServerModelRequestMethod"));
     assert!(script.contains("send-cli-request-for-host"));
