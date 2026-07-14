@@ -838,15 +838,39 @@ pub async fn load_ads() -> CommandResult<AdsPayload> {
 
 #[tauri::command]
 pub async fn refresh_script_market() -> CommandResult<ScriptMarketPayload> {
-    match script_market::fetch_market_manifest(script_market::DEFAULT_MARKET_INDEX_URL).await {
-        Ok(manifest) => ok(
-            "脚本市场已刷新。",
-            script_market_payload_from_manifest(&manifest, "ok", "脚本市场已刷新。"),
-        ),
-        Err(error) => failed(
-            &format!("脚本市场加载失败：{error}"),
-            failed_script_market_payload(&format!("脚本市场加载失败：{error}")),
-        ),
+    match script_market::fetch_market_manifest_cached(
+        script_market::DEFAULT_MARKET_INDEX_URL,
+        &script_market_cache_path(),
+    )
+    .await
+    {
+        Ok(fetch) => {
+            let (status, message) = match fetch.source {
+                script_market::ScriptMarketSource::Network => ("ok", "脚本市场已刷新。"),
+                script_market::ScriptMarketSource::Cache => (
+                    "cached",
+                    fetch.warning.as_deref().unwrap_or("当前显示脚本市场缓存。"),
+                ),
+            };
+            if fetch.source == script_market::ScriptMarketSource::Cache {
+                let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
+                    "manager.script_market_cache_used",
+                    json!({ "message": message }),
+                );
+            }
+            ok(
+                message,
+                script_market_payload_from_manifest(&fetch.manifest, status, message),
+            )
+        }
+        Err(error) => {
+            let message = format!("脚本市场加载失败：{error}");
+            let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
+                "manager.script_market_failed",
+                json!({ "error": error.to_string() }),
+            );
+            failed(&message, failed_script_market_payload(&message))
+        }
     }
 }
 
@@ -1105,16 +1129,20 @@ pub async fn install_market_script(id: String) -> CommandResult<ScriptMarketPayl
             failed_script_market_payload("脚本 id 不能为空。"),
         );
     }
-    let manifest =
-        match script_market::fetch_market_manifest(script_market::DEFAULT_MARKET_INDEX_URL).await {
-            Ok(manifest) => manifest,
-            Err(error) => {
-                return failed(
-                    &format!("脚本市场加载失败：{error}"),
-                    failed_script_market_payload(&format!("脚本市场加载失败：{error}")),
-                );
-            }
-        };
+    let manifest = match script_market::fetch_market_manifest_cached(
+        script_market::DEFAULT_MARKET_INDEX_URL,
+        &script_market_cache_path(),
+    )
+    .await
+    {
+        Ok(fetch) => fetch.manifest,
+        Err(error) => {
+            return failed(
+                &format!("脚本市场加载失败：{error}"),
+                failed_script_market_payload(&format!("脚本市场加载失败：{error}")),
+            );
+        }
+    };
     let Some(script) = manifest.scripts.iter().find(|script| script.id == trimmed) else {
         return failed(
             "市场清单中未找到该脚本。",
@@ -1123,10 +1151,18 @@ pub async fn install_market_script(id: String) -> CommandResult<ScriptMarketPayl
     };
     let manager = default_user_script_manager();
     match script_market::install_market_script(&manager, script).await {
-        Ok(()) => ok(
-            "脚本已安装。",
-            script_market_payload_from_manifest(&manifest, "ok", "脚本已安装。"),
-        ),
+        Ok(()) => {
+            let message = match reload_running_user_scripts(&manager).await {
+                Ok(()) => "脚本已安装并加载到当前 Codex。".to_string(),
+                Err(error) => {
+                    format!("脚本已安装；当前 Codex 热加载失败，请重启 codex123：{error}")
+                }
+            };
+            ok(
+                &message,
+                script_market_payload_from_manifest(&manifest, "ok", &message),
+            )
+        }
         Err(error) => failed(
             &format!("安装脚本失败：{error}"),
             script_market_payload_from_manifest(
@@ -1139,21 +1175,26 @@ pub async fn install_market_script(id: String) -> CommandResult<ScriptMarketPayl
 }
 
 #[tauri::command]
-pub fn set_user_script_enabled(key: String, enabled: bool) -> CommandResult<SettingsPayload> {
+pub async fn set_user_script_enabled(key: String, enabled: bool) -> CommandResult<SettingsPayload> {
     let trimmed = key.trim();
     if trimmed.is_empty() {
         return failed("脚本 key 不能为空。", fallback_settings_payload());
     }
     let manager = default_user_script_manager();
     match manager.set_script_enabled(trimmed, enabled) {
-        Ok(_) => settings_payload(
-            if enabled {
-                "脚本已启用。"
+        Ok(_) => {
+            let message = if enabled {
+                match reload_running_user_scripts(&manager).await {
+                    Ok(()) => "脚本已启用并加载到当前 Codex。".to_string(),
+                    Err(error) => {
+                        format!("脚本已启用；当前 Codex 热加载失败，请重启 codex123：{error}")
+                    }
+                }
             } else {
-                "脚本已禁用。"
-            },
-            "脚本启停失败",
-        ),
+                "脚本已禁用；如需立即移除脚本已产生的界面效果，请重启 codex123。".to_string()
+            };
+            settings_payload(&message, "脚本启停失败")
+        }
         Err(error) => failed(
             &format!("脚本启停失败：{error}"),
             fallback_settings_payload(),
@@ -1169,9 +1210,24 @@ pub fn delete_user_script(key: String) -> CommandResult<SettingsPayload> {
     }
     let manager = default_user_script_manager();
     match manager.delete_user_script(trimmed) {
-        Ok(_) => settings_payload("脚本已删除。", "脚本删除失败"),
+        Ok(_) => settings_payload(
+            "脚本已删除；如需立即移除脚本已产生的界面效果，请重启 codex123。",
+            "脚本删除失败",
+        ),
         Err(error) => failed(
             &format!("脚本删除失败：{error}"),
+            fallback_settings_payload(),
+        ),
+    }
+}
+
+#[tauri::command]
+pub async fn reload_user_scripts() -> CommandResult<SettingsPayload> {
+    let manager = default_user_script_manager();
+    match reload_running_user_scripts(&manager).await {
+        Ok(()) => settings_payload("已将启用的脚本重新加载到当前 Codex。", "脚本重载失败"),
+        Err(error) => failed(
+            &format!("脚本重载失败：{error}"),
             fallback_settings_payload(),
         ),
     }
@@ -2311,6 +2367,32 @@ fn user_script_inventory() -> Value {
         })
 }
 
+async fn reload_running_user_scripts(manager: &UserScriptManager) -> anyhow::Result<()> {
+    let bundle = manager.build_enabled_bundle()?;
+    if bundle.trim().is_empty() {
+        return Ok(());
+    }
+    let debug_port = StatusStore::default()
+        .load_latest()?
+        .and_then(|status| status.debug_port)
+        .unwrap_or_else(default_debug_port);
+    let targets = codex_plus_core::cdp::list_targets(debug_port).await?;
+    let target = codex_plus_core::cdp::pick_page_target(&targets)?;
+    let websocket_url = target
+        .web_socket_debugger_url
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("Codex 页面没有 CDP WebSocket 地址"))?;
+    codex_plus_core::bridge::evaluate_script(websocket_url, &bundle).await?;
+    let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
+        "manager.user_scripts_reloaded",
+        json!({
+            "debug_port": debug_port,
+            "target_id": target.id
+        }),
+    );
+    Ok(())
+}
+
 fn failed_script_market_payload(message: &str) -> ScriptMarketPayload {
     ScriptMarketPayload {
         market: json!({
@@ -2423,6 +2505,10 @@ fn user_scripts_config_dir() -> PathBuf {
         let _ = fs::rename(&legacy, &next);
     }
     next
+}
+
+fn script_market_cache_path() -> PathBuf {
+    user_scripts_config_dir().join("script_market_index.json")
 }
 
 fn builtin_user_scripts_dir() -> PathBuf {

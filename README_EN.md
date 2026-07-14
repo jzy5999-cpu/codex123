@@ -178,7 +178,7 @@ Thanks also to [ccswitch](https://github.com/farion1231/cc-switch) for its local
 - Relay injection mode with multiple relay profiles, `codex123` provider configuration, and a one-click switch back to official ChatGPT login mode.
 - Per-model context windows that generate a dedicated catalog per provider instead of forcing all models to share one window value.
 - Traditional enhancement mode that selects plugin marketplace unlock or plugin entry unlock by Codex App version, plus forced plugin install, session delete, Markdown export, project move, Timeline, and more.
-- Independent user script management with startup injection.
+- Independent user script management with startup injection; the script market supports proxy-aware requests, bounded retries, last-known-good manifest caching, and reloading into the current session.
 - Provider Sync to keep historical sessions visible after switching providers, with either the current `config.toml` target or a manually selected provider id.
 - Zed open entry detects remote SSH context and opens the matching remote file in Zed Remote Development from Codex.
 - Upstream worktree creation: create new worktrees from `upstream/<base-branch>` after fetching the remote branch, reducing conflicts caused by stale local HEAD state.
@@ -217,6 +217,8 @@ To return to the official login mode, use the clear API mode button in the Relay
 Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, codex123 will not inject its menu or scripts.
 
 When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, and user scripts, can still be used.
+
+The script market manifest comes from [CodexPlusPlusScriptMarket](https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket). codex123 stores the latest valid manifest and shows that cached list when GitHub Raw is temporarily unavailable. Installed or re-enabled scripts are loaded into the current Codex session when possible, and the manager also provides a **Reload scripts** action. Disabling or deleting a script cannot undo UI elements that the script already created, so restart codex123 to remove those effects completely.
 
 In traditional enhancement mode, plugin-related controls are split into three independent switches:
 

@@ -219,7 +219,7 @@ makensis /DVERSION=0.2.2 codex123.nsi
 - 中转注入模式：支持多个中转配置，写入 `codex123` provider，并可切回官方 ChatGPT 登录态。
 - 按模型上下文窗口：为同一供应商下的不同模型生成独立 catalog，避免所有模型共用一个窗口值。
 - 传统增强模式：按 Codex App 版本选择插件市场解锁或插件入口解锁，并支持特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
-- 用户脚本独立管理，可在启动时注入自定义脚本。
+- 用户脚本独立管理，可在启动时注入自定义脚本；脚本市场支持代理、有限重试、最近清单缓存和当前会话重新加载。
 - Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见；可使用当前 `config.toml` 自动目标，也可手动指定目标 provider。
 - Zed 打开入口：识别远程 SSH 上下文后，可从 Codex 直接打开对应文件到 Zed Remote Development。
 - Upstream worktree 创建：可从 `upstream/<base-branch>` 创建新 worktree，创建前自动 fetch 远端分支，降低从陈旧本地 HEAD 派生导致的冲突风险。
@@ -277,6 +277,8 @@ experimental_bearer_token = "sk-..."
 增强功能在管理工具中统一开关。默认开启增强注入；关闭后不会注入 codex123 菜单和脚本。
 
 如果启用中转注入模式，插件入口解锁和强制安装不再需要，界面会提示“中转注入模式下无需开启”。会话删除、导出、移动、Timeline 和用户脚本等增强仍可继续使用。
+
+脚本市场清单来自 [CodexPlusPlusScriptMarket](https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket)。刷新成功后 codex123 会保存最近一次有效清单；GitHub Raw 暂时不可访问时会显示缓存内容。安装或启用脚本后会尝试立即加载到当前 Codex，也可点击“重新加载脚本”。禁用或删除脚本不会撤销脚本已创建的界面元素，需要重启 codex123 才能完全移除。
 
 完整增强模式下，插件相关能力拆成三项独立开关：
 

@@ -36,6 +36,7 @@ import {
   Moon,
   Network,
   PawPrint,
+  Play,
   Power,
   PowerOff,
   Plus,
@@ -708,6 +709,15 @@ export function App() {
     const name = script?.name || key;
     if (!window.confirm(`删除脚本“${name}”？此操作会移除本地脚本文件。`)) return;
     const result = await run(() => call<SettingsResult>("delete_user_script", { key }));
+    if (result) {
+      setSettings(result);
+      setScriptMarket((current) => syncMarketInstalledState(current, result.user_scripts));
+      showResultNotice("本地脚本", result);
+    }
+  };
+
+  const reloadUserScripts = async () => {
+    const result = await run(() => call<SettingsResult>("reload_user_scripts"));
     if (result) {
       setSettings(result);
       setScriptMarket((current) => syncMarketInstalledState(current, result.user_scripts));
@@ -1429,6 +1439,7 @@ export function App() {
       installMarketScript,
       setUserScriptEnabled,
       deleteUserScript,
+      reloadUserScripts,
       refreshPetdex,
       refreshInstalledPets,
       installPetdexPet,
@@ -1638,6 +1649,7 @@ type Actions = {
   installMarketScript: (id: string) => Promise<void>;
   setUserScriptEnabled: (key: string, enabled: boolean) => Promise<void>;
   deleteUserScript: (key: string) => Promise<void>;
+  reloadUserScripts: () => Promise<void>;
   refreshPetdex: () => Promise<void>;
   refreshInstalledPets: () => Promise<void>;
   installPetdexPet: (pet: PetdexPet) => Promise<void>;
@@ -2140,6 +2152,10 @@ function UserScriptsScreen({ settings, market, actions }: { settings: SettingsRe
             <Button onClick={() => void actions.refreshCurrent()} variant="secondary">
               <RefreshCw className="h-4 w-4" />
               刷新本地
+            </Button>
+            <Button onClick={() => void actions.reloadUserScripts()} variant="secondary">
+              <Play className="h-4 w-4" />
+              重新加载脚本
             </Button>
           </Toolbar>
         </CardContent>
