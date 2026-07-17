@@ -49,6 +49,7 @@ After installation, you get two entry points:
 ## Docs
 
 - [FAQ](docs/FAQ.md): common questions about remote-control-compatible relay mode, DeepSeek, macOS, and Windows scope.
+- [OpenAI Build Week submission notes](docs/BUILD_WEEK_SUBMISSION.md): judging setup, Build Week extension evidence, and Codex/GPT-5.6 collaboration notes.
 - [Promotion copy](docs/PROMOTION.md): ready-to-post Chinese copy for V2EX, Jike, X, Zhihu, and other communities.
 - [Outreach checklist](docs/OUTREACH.md): GitHub topics, community channels, and messaging priorities.
 
