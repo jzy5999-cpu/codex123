@@ -203,6 +203,37 @@ fn app_paths_normalizes_executable_and_package_paths() {
 }
 
 #[test]
+fn app_paths_rejects_codex123_and_codex_plus_plus_as_codex_app() {
+    let temp = tempfile::tempdir().unwrap();
+    let codex123 = temp.path().join("codex123.app");
+    let codex123_manager = temp.path().join("codex123 管理工具.app");
+    let codex_plus_plus = temp.path().join("Programs").join("Codex++");
+    std::fs::create_dir_all(&codex123).unwrap();
+    std::fs::create_dir_all(&codex123_manager).unwrap();
+    std::fs::create_dir_all(&codex_plus_plus).unwrap();
+    std::fs::write(codex_plus_plus.join("Codex++ Manager.exe"), "").unwrap();
+
+    assert_eq!(normalize_codex_app_path(&codex123), None);
+    assert_eq!(normalize_codex_app_path(&codex123_manager), None);
+    assert_eq!(normalize_codex_app_path(&codex_plus_plus), None);
+    assert_eq!(
+        normalize_codex_app_path(&codex_plus_plus.join("Codex++ Manager.exe")),
+        None
+    );
+}
+
+#[test]
+fn app_paths_rejects_plain_directory_without_codex_executable() {
+    let temp = tempfile::tempdir().unwrap();
+    let plain = temp.path().join("not-a-codex-app");
+    std::fs::create_dir_all(&plain).unwrap();
+    std::fs::write(plain.join("readme.txt"), "nope").unwrap();
+
+    assert_eq!(normalize_codex_app_path(&plain), None);
+    assert_eq!(normalize_codex_app_path(&plain.join("readme.txt")), None);
+}
+
+#[test]
 fn app_paths_saved_path_is_used_when_no_explicit_path_is_provided() {
     let temp = tempfile::tempdir().unwrap();
     let app = temp.path().join("Codex.app");

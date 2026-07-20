@@ -65,6 +65,7 @@ pub fn run() {
             commands::enable_watcher,
             commands::disable_watcher,
             commands::read_latest_logs,
+            commands::clear_logs,
             commands::copy_diagnostics,
             commands::export_diagnostics,
             commands::reset_settings,

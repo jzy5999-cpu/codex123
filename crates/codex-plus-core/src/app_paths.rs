@@ -124,35 +124,32 @@ pub fn normalize_codex_app_path(path: &Path) -> Option<PathBuf> {
     }
 
     let file_name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-    if file_name.eq_ignore_ascii_case("Codex.exe") || file_name.eq_ignore_ascii_case("codex.exe") {
+    if is_codex_enhancer_path(path) {
+        return None;
+    }
+
+    if is_supported_app_executable_name(file_name) {
         return path.parent().map(Path::to_path_buf);
     }
 
     if path.extension() == Some(OsStr::new("app")) {
-        return Some(path.to_path_buf());
+        return is_macos_codex_bundle_name(file_name).then(|| path.to_path_buf());
     }
 
     if path.is_file() {
-        return path.parent().map(Path::to_path_buf);
+        let parent = path.parent()?;
+        return normalize_codex_app_path(parent);
     }
 
-    let upper = path.join("Codex.exe");
-    let lower = path.join("codex.exe");
-    if upper.exists() || lower.exists() {
+    if executable_in_dir(path).is_some() {
         return Some(path.to_path_buf());
     }
 
     let nested_app = path.join("app");
     if nested_app.is_dir() {
-        let upper = nested_app.join("Codex.exe");
-        let lower = nested_app.join("codex.exe");
-        if upper.exists() || lower.exists() {
+        if executable_in_dir(&nested_app).is_some() {
             return Some(nested_app);
         }
-    }
-
-    if path.is_dir() {
-        return Some(path.to_path_buf());
     }
 
     None
@@ -168,12 +165,7 @@ pub fn build_codex_executable(app_dir: &Path) -> PathBuf {
         }
         return macos_dir.join("Codex");
     }
-    let upper = app_dir.join("Codex.exe");
-    if upper.exists() {
-        upper
-    } else {
-        app_dir.join("codex.exe")
-    }
+    executable_in_dir(app_dir).unwrap_or_else(|| app_dir.join("Codex.exe"))
 }
 
 pub fn codex_app_version(app_dir: &Path) -> Option<String> {
@@ -256,6 +248,50 @@ fn append_user_data_variants(candidates: &mut Vec<PathBuf>, base: &Path) {
     candidates.push(base.join("OpenAI").join("Codex"));
     candidates.push(base.join("OpenAI.Codex"));
     candidates.push(base.join("Codex"));
+}
+
+fn is_codex_enhancer_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        let std::path::Component::Normal(name) = component else {
+            return false;
+        };
+        let Some(name) = name.to_str() else {
+            return false;
+        };
+        let lower = name.to_ascii_lowercase();
+        lower == "codex123.app"
+            || lower == "codex123 管理工具.app"
+            || lower == "codex123"
+            || lower == "codex++"
+            || lower == "codexplusplus"
+            || lower == "codex-plus-plus"
+            || lower.contains("codex-plus-manager")
+            || lower.contains("codex123manager")
+    })
+}
+
+fn is_macos_codex_bundle_name(name: &str) -> bool {
+    [
+        "Codex.app",
+        "OpenAI Codex.app",
+        "OpenAI.Codex.app",
+        "ChatGPT.app",
+    ]
+    .iter()
+    .any(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+
+fn is_supported_app_executable_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case("ChatGPT.exe")
+        || name.eq_ignore_ascii_case("Codex.exe")
+        || name.eq_ignore_ascii_case("codex.exe")
+}
+
+fn executable_in_dir(app_dir: &Path) -> Option<PathBuf> {
+    ["ChatGPT.exe", "Codex.exe", "codex.exe"]
+        .into_iter()
+        .map(|name| app_dir.join(name))
+        .find(|path| path.exists())
 }
 
 fn macos_app_candidates(root: &Path) -> Vec<PathBuf> {

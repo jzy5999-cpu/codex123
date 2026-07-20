@@ -292,6 +292,8 @@ type LogsResult = CommandResult<{
   path: string;
   text: string;
   lines: number;
+  truncated: boolean;
+  fileSize: number;
 }>;
 
 type DiagnosticsResult = CommandResult<{
@@ -765,6 +767,14 @@ export function App() {
     if (result) {
       setLogs(result);
       if (!silent) showResultNotice("日志已刷新", result, { silentSuccess: true });
+    }
+  };
+
+  const clearLogs = async () => {
+    const result = await run(() => call<LogsResult>("clear_logs"));
+    if (result) {
+      setLogs(result);
+      showResultNotice("日志清理", result, { silentSuccess: false });
     }
   };
 
@@ -1459,6 +1469,7 @@ export function App() {
       switchOfficialMode,
       switchPureApiMode,
       refreshLogs,
+      clearLogs,
       refreshDiagnostics,
       showMessage: async (title: string, message: string, status?: Status) => showNotice(title, message, status),
       copyLogs: () => copyText(logs?.text ?? "", "日志已复制。"),
@@ -1674,6 +1685,7 @@ type Actions = {
   switchOfficialMode: () => Promise<void>;
   switchPureApiMode: () => Promise<void>;
   refreshLogs: () => Promise<void>;
+  clearLogs: () => Promise<void>;
   refreshDiagnostics: () => Promise<void>;
   showMessage: (title: string, message: string, status?: Status) => Promise<void>;
   copyLogs: () => Promise<void>;
@@ -2741,9 +2753,14 @@ function SettingsScreen({
 
 function LogsPanel({ logs, actions }: { logs: LogsResult | null; actions: Actions }) {
   const lines = splitLogLines(logs?.text ?? "");
+  const logDetail = logs
+    ? logs.truncated
+      ? `日志大小 ${formatBytes(logs.fileSize)}，仅显示末尾 ${logs.lines} 行`
+      : `日志大小 ${formatBytes(logs.fileSize)}`
+    : "";
   return (
     <Panel>
-      <CardHead title="最近日志" detail={logs?.path ?? ""} />
+      <CardHead title="最近日志" detail={[logs?.path ?? "", logDetail].filter(Boolean).join(" · ")} />
       <CardContent>
         <div className="log-lines">
           {lines.length ? (
@@ -2759,6 +2776,9 @@ function LogsPanel({ logs, actions }: { logs: LogsResult | null; actions: Action
         </div>
         <Toolbar>
           <Button onClick={() => void actions.refreshLogs()}>刷新</Button>
+          <Button variant="secondary" onClick={() => void actions.clearLogs()}>
+            清理日志
+          </Button>
           <Button variant="secondary" onClick={() => void actions.copyLogs()}>
             复制
           </Button>
@@ -5268,6 +5288,18 @@ function numberOrDefault(value: string, fallback: number) {
 
 function splitLogLines(text: string) {
   return text.trimEnd().split(/\r?\n/).filter((line, index, lines) => line.length > 0 || index < lines.length - 1);
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`;
 }
 
 function formatTime(value: number) {

@@ -65,6 +65,10 @@ fn normalizes_remote_ads_for_plugin_and_manager_rendering() {
 
 #[tokio::test]
 async fn fetch_ad_list_tries_backup_url_when_primary_fails() {
+    unsafe {
+        std::env::set_var("NO_PROXY", "127.0.0.1,localhost");
+        std::env::set_var("no_proxy", "127.0.0.1,localhost");
+    }
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let thread = thread::spawn(move || {

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -216,6 +217,74 @@ pub struct LogsPayload {
     pub path: String,
     pub text: String,
     pub lines: usize,
+    pub truncated: bool,
+    #[serde(rename = "fileSize")]
+    pub file_size: u64,
+}
+
+#[derive(Debug, Clone)]
+struct LiveRelayFilesSnapshot {
+    config: Option<Vec<u8>>,
+    auth: Option<Vec<u8>>,
+}
+
+impl LiveRelayFilesSnapshot {
+    fn capture(home: &Path) -> anyhow::Result<Self> {
+        Ok(Self {
+            config: read_optional_bytes(&home.join("config.toml"))?,
+            auth: read_optional_bytes(&home.join("auth.json"))?,
+        })
+    }
+
+    fn restore(&self, home: &Path) -> anyhow::Result<()> {
+        fs::create_dir_all(home)?;
+        restore_optional_file(&home.join("config.toml"), self.config.as_deref())?;
+        restore_optional_file(&home.join("auth.json"), self.auth.as_deref())?;
+        Ok(())
+    }
+}
+
+fn read_optional_bytes(path: &Path) -> anyhow::Result<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn restore_optional_file(path: &Path, contents: Option<&[u8]>) -> anyhow::Result<()> {
+    match contents {
+        Some(contents) => atomic_write_local(path, contents),
+        None => match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        },
+    }
+}
+
+fn atomic_write_local(path: &Path, contents: &[u8]) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension(format!(
+        "tmp-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+    ));
+    fs::write(&tmp, contents)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+fn relay_restore_error_message(
+    error: &anyhow::Error,
+    restore_error: Option<anyhow::Error>,
+) -> String {
+    match restore_error {
+        Some(restore_error) => format!("切换失败：{error}；同时恢复原配置失败：{restore_error}"),
+        None => format!("切换失败：{error}；已恢复原 config.toml / auth.json。"),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1406,12 +1475,14 @@ pub fn disable_watcher() -> CommandResult<WatcherPayload> {
 pub fn read_latest_logs(request: LogRequest) -> CommandResult<LogsPayload> {
     let path = codex_plus_core::paths::default_diagnostic_log_path();
     match read_tail(&path, request.lines) {
-        Ok(text) => ok(
+        Ok(tail) => ok(
             "日志已读取。",
             LogsPayload {
                 path: path.to_string_lossy().to_string(),
-                text,
+                text: tail.text,
                 lines: request.lines,
+                truncated: tail.truncated,
+                file_size: tail.file_size,
             },
         ),
         Err(error) => failed(
@@ -1420,6 +1491,35 @@ pub fn read_latest_logs(request: LogRequest) -> CommandResult<LogsPayload> {
                 path: path.to_string_lossy().to_string(),
                 text: String::new(),
                 lines: request.lines,
+                truncated: false,
+                file_size: 0,
+            },
+        ),
+    }
+}
+
+#[tauri::command]
+pub fn clear_logs() -> CommandResult<LogsPayload> {
+    let path = codex_plus_core::paths::default_diagnostic_log_path();
+    match codex_plus_core::diagnostic_log::clear_diagnostic_log() {
+        Ok(()) => ok(
+            "日志已清理。",
+            LogsPayload {
+                path: path.to_string_lossy().to_string(),
+                text: String::new(),
+                lines: 0,
+                truncated: false,
+                file_size: 0,
+            },
+        ),
+        Err(error) => failed(
+            &format!("清理日志失败：{error}"),
+            LogsPayload {
+                path: path.to_string_lossy().to_string(),
+                text: String::new(),
+                lines: 0,
+                truncated: false,
+                file_size: 0,
             },
         ),
     }
@@ -1853,6 +1953,16 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
     let relay = settings.active_relay_profile();
     log_relay_apply_request("manager.apply_relay_injection", &settings, &relay);
     if relay_has_complete_files(&relay) {
+        let snapshot = match LiveRelayFilesSnapshot::capture(&home) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                let status = codex_plus_core::relay_config::relay_status_from_home(&home);
+                return failed(
+                    &format!("读取当前 Codex 配置失败，已停止切换：{error}"),
+                    relay_payload(status, None),
+                );
+            }
+        };
         return match codex_plus_core::relay_config::apply_relay_profile_to_home_with_switch_rules(
             &home,
             &relay,
@@ -1873,6 +1983,7 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
                 )
             }
             Err(error) => {
+                let restore_error = snapshot.restore(&home).err();
                 let status = codex_plus_core::relay_config::relay_status_from_home(&home);
                 log_relay_apply_result(
                     "manager.apply_relay_injection.failed",
@@ -1882,7 +1993,7 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
                     Some(error.to_string()),
                 );
                 failed(
-                    &format!("切换完整中转配置失败：{error}"),
+                    &relay_restore_error_message(&error, restore_error),
                     relay_payload(status, None),
                 )
             }
@@ -1904,6 +2015,17 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
             relay_payload(status, None),
         );
     }
+
+    let snapshot = match LiveRelayFilesSnapshot::capture(&home) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let status = codex_plus_core::relay_config::relay_status_from_home(&home);
+            return failed(
+                &format!("读取当前 Codex 配置失败，已停止切换：{error}"),
+                relay_payload(status, None),
+            );
+        }
+    };
 
     match codex_plus_core::relay_config::apply_relay_config_to_home_with_protocol(
         &home,
@@ -1927,6 +2049,7 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
             )
         }
         Err(error) => {
+            let restore_error = snapshot.restore(&home).err();
             let status = codex_plus_core::relay_config::relay_status_from_home(&home);
             log_relay_apply_result(
                 "manager.apply_relay_injection.failed",
@@ -1936,7 +2059,7 @@ pub fn apply_relay_injection() -> CommandResult<RelayPayload> {
                 Some(error.to_string()),
             );
             failed(
-                &format!("写入中转配置失败：{error}"),
+                &relay_restore_error_message(&error, restore_error),
                 relay_payload(status, None),
             )
         }
@@ -1958,6 +2081,16 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
     let relay = settings.active_relay_profile();
     log_relay_apply_request("manager.apply_pure_api_injection", &settings, &relay);
     if relay_has_complete_files(&relay) {
+        let snapshot = match LiveRelayFilesSnapshot::capture(&home) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                let status = codex_plus_core::relay_config::relay_status_from_home(&home);
+                return failed(
+                    &format!("读取当前 Codex 配置失败，已停止切换：{error}"),
+                    relay_payload(status, None),
+                );
+            }
+        };
         return match codex_plus_core::relay_config::apply_relay_profile_to_home_with_switch_rules(
             &home,
             &relay,
@@ -1973,9 +2106,16 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                     None,
                 );
                 if !status.configured {
+                    let restore_error = snapshot.restore(&home).err();
+                    let status = codex_plus_core::relay_config::relay_status_from_home(&home);
                     return failed(
-                        "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。",
-                        relay_payload(status, result.backup_path),
+                        &relay_restore_error_message(
+                            &anyhow::anyhow!(
+                                "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。"
+                            ),
+                            restore_error,
+                        ),
+                        relay_payload(status, None),
                     );
                 }
                 ok(
@@ -1984,6 +2124,7 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                 )
             }
             Err(error) => {
+                let restore_error = snapshot.restore(&home).err();
                 let status = codex_plus_core::relay_config::relay_status_from_home(&home);
                 log_relay_apply_result(
                     "manager.apply_pure_api_injection.failed",
@@ -1993,12 +2134,23 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                     Some(error.to_string()),
                 );
                 failed(
-                    &format!("切换纯 API 配置失败：{error}"),
+                    &relay_restore_error_message(&error, restore_error),
                     relay_payload(status, None),
                 )
             }
         };
     }
+
+    let snapshot = match LiveRelayFilesSnapshot::capture(&home) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let status = codex_plus_core::relay_config::relay_status_from_home(&home);
+            return failed(
+                &format!("读取当前 Codex 配置失败，已停止切换：{error}"),
+                relay_payload(status, None),
+            );
+        }
+    };
 
     match codex_plus_core::relay_config::apply_pure_api_config_to_home_with_protocol(
         &home,
@@ -2017,9 +2169,16 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                 None,
             );
             if !status.configured {
+                let restore_error = snapshot.restore(&home).err();
+                let status = codex_plus_core::relay_config::relay_status_from_home(&home);
                 return failed(
-                    "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。",
-                    relay_payload(status, result.backup_path),
+                    &relay_restore_error_message(
+                        &anyhow::anyhow!(
+                            "纯 API 配置写入后未检测到完整 provider，请检查 config.toml 和供应商 API Key。"
+                        ),
+                        restore_error,
+                    ),
+                    relay_payload(status, None),
                 );
             }
             ok(
@@ -2028,6 +2187,7 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
             )
         }
         Err(error) => {
+            let restore_error = snapshot.restore(&home).err();
             let status = codex_plus_core::relay_config::relay_status_from_home(&home);
             log_relay_apply_result(
                 "manager.apply_pure_api_injection.failed",
@@ -2037,7 +2197,7 @@ pub fn apply_pure_api_injection() -> CommandResult<RelayPayload> {
                 Some(error.to_string()),
             );
             failed(
-                &format!("写入纯 API 模式失败：{error}"),
+                &relay_restore_error_message(&error, restore_error),
                 relay_payload(status, None),
             )
         }
@@ -2680,11 +2840,44 @@ fn watcher_payload() -> WatcherPayload {
     }
 }
 
-fn read_tail(path: &Path, max_lines: usize) -> std::io::Result<String> {
-    let contents = fs::read_to_string(path)?;
+const MAX_LOG_TAIL_READ_BYTES: u64 = 2 * 1024 * 1024;
+
+#[derive(Debug, Clone)]
+struct TailRead {
+    text: String,
+    truncated: bool,
+    file_size: u64,
+}
+
+fn read_tail(path: &Path, max_lines: usize) -> std::io::Result<TailRead> {
+    let mut file = fs::File::open(path)?;
+    let file_size = file.metadata()?.len();
+    if max_lines == 0 || file_size == 0 {
+        return Ok(TailRead {
+            text: String::new(),
+            truncated: false,
+            file_size,
+        });
+    }
+
+    let read_bytes = file_size.min(MAX_LOG_TAIL_READ_BYTES);
+    file.seek(SeekFrom::Start(file_size - read_bytes))?;
+    let mut bytes = Vec::with_capacity(read_bytes as usize);
+    file.read_to_end(&mut bytes)?;
+    let truncated = read_bytes < file_size;
+    if truncated {
+        if let Some(pos) = bytes.iter().position(|byte| *byte == b'\n') {
+            bytes.drain(..=pos);
+        }
+    }
+    let contents = String::from_utf8_lossy(&bytes);
     let mut lines = contents.lines().rev().take(max_lines).collect::<Vec<_>>();
     lines.reverse();
-    Ok(lines.join("\n"))
+    Ok(TailRead {
+        text: lines.join("\n"),
+        truncated,
+        file_size,
+    })
 }
 
 fn path_state(path: Option<PathBuf>) -> PathState {
@@ -3186,5 +3379,34 @@ model_reasoning_effort = "high"
 
         assert_eq!(result.status, "failed");
         assert!(result.message.contains("只允许打开 http 或 https 链接"));
+    }
+
+    #[test]
+    fn read_tail_returns_requested_lines_from_file_end() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("codex123.log");
+        std::fs::write(&path, "one\ntwo\nthree\nfour\n").unwrap();
+
+        let result = read_tail(&path, 2).unwrap();
+
+        assert_eq!(result.text, "three\nfour");
+        assert_eq!(result.file_size, 19);
+        assert!(!result.truncated);
+    }
+
+    #[test]
+    fn read_tail_does_not_load_prefix_when_log_is_large() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("codex123.log");
+        let mut contents = String::from("prefix-should-not-appear\n");
+        contents.push_str(&"x".repeat((MAX_LOG_TAIL_READ_BYTES as usize) + 128));
+        contents.push_str("\nlast-1\nlast-2\n");
+        std::fs::write(&path, contents).unwrap();
+
+        let result = read_tail(&path, 2).unwrap();
+
+        assert_eq!(result.text, "last-1\nlast-2");
+        assert!(result.truncated);
+        assert!(!result.text.contains("prefix-should-not-appear"));
     }
 }
