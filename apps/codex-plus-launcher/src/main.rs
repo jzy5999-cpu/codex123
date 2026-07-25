@@ -361,10 +361,13 @@ impl Default for LauncherDataService {
 #[async_trait::async_trait]
 impl BridgeDataService for LauncherDataService {
     async fn delete(&self, session: SessionRef) -> anyhow::Result<DeleteResult> {
-        let adapter = self.storage_adapter();
-        tokio::task::spawn_blocking(move || adapter.delete_local(&session))
-            .await
-            .map_err(|error| anyhow::anyhow!("delete task failed: {error}"))
+        let db_paths = self.candidate_db_paths();
+        let backup_store = codex_plus_data::BackupStore::new(self.backup_dir.clone());
+        tokio::task::spawn_blocking(move || {
+            codex_plus_data::delete_local_from_paths(db_paths, backup_store, &session)
+        })
+        .await
+        .map_err(|error| anyhow::anyhow!("delete task failed: {error}"))
     }
 
     async fn undo(&self, undo_token: String) -> anyhow::Result<DeleteResult> {
@@ -444,10 +447,12 @@ impl LauncherDataService {
     }
 
     fn storage_adapter(&self) -> codex_plus_data::SQLiteStorageAdapter {
+        let allowed_db_paths = self.candidate_db_paths();
         codex_plus_data::SQLiteStorageAdapter::new(
             self.db_path.clone(),
             codex_plus_data::BackupStore::new(self.backup_dir.clone()),
         )
+        .with_allowed_db_paths(allowed_db_paths)
     }
 }
 
@@ -657,11 +662,11 @@ async fn try_inject_with_context(
 }
 
 fn default_codex_db_path() -> PathBuf {
-    directories::BaseDirs::new()
+    let home = directories::BaseDirs::new()
         .map(|dirs| dirs.home_dir().to_path_buf())
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".codex")
-        .join("state_5.sqlite")
+        .join(".codex");
+    codex_plus_core::codex_sqlite::codex_session_db_path_from_home(&home)
 }
 
 fn open_url(url: &str) -> anyhow::Result<()> {

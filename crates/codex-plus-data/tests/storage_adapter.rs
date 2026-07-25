@@ -1,5 +1,8 @@
 use codex_plus_core::models::{DeleteStatus, SessionRef};
-use codex_plus_data::{BackupStore, SQLiteStorageAdapter, move_codex_thread_workspace_from_paths};
+use codex_plus_data::{
+    BackupStore, SQLiteStorageAdapter, delete_local_from_paths,
+    move_codex_thread_workspace_from_paths,
+};
 use rusqlite::Connection;
 use serde_json::json;
 use std::fs;
@@ -81,6 +84,16 @@ fn create_codex_thread_db(path: &Path, rollout_path: &Path) {
         [],
     )
     .unwrap();
+}
+
+fn thread_count(path: &Path, thread_id: &str) -> i64 {
+    let db = Connection::open(path).unwrap();
+    db.query_row(
+        "SELECT COUNT(*) FROM threads WHERE id = ?1",
+        [thread_id],
+        |row| row.get::<_, i64>(0),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -489,6 +502,147 @@ fn codex_delete_rolls_back_when_related_delete_fails() {
         )
         .unwrap(),
         1
+    );
+}
+
+#[test]
+fn delete_local_from_paths_removes_duplicate_threads_from_all_databases() {
+    let tmp = tempdir().unwrap();
+    let first_db = tmp.path().join("first.sqlite");
+    let second_db = tmp.path().join("second.sqlite");
+    let first_rollout = tmp.path().join("first-rollout.jsonl");
+    let second_rollout = tmp.path().join("second-rollout.jsonl");
+    fs::write(&first_rollout, "{\"type\":\"message\"}\n").unwrap();
+    fs::write(&second_rollout, "{\"type\":\"message\"}\n").unwrap();
+    create_codex_thread_db(&first_db, &first_rollout);
+    create_codex_thread_db(&second_db, &second_rollout);
+
+    let result = delete_local_from_paths(
+        vec![first_db.clone(), second_db.clone()],
+        BackupStore::new(tmp.path().join("backups")),
+        &session("t1", "Codex Thread"),
+    );
+
+    assert_eq!(result.status, DeleteStatus::LocalDeleted);
+    assert_eq!(result.message, "已从 2 个本地存储删除");
+    assert!(result.undo_token.is_some());
+    assert_eq!(thread_count(&first_db, "t1"), 0);
+    assert_eq!(thread_count(&second_db, "t1"), 0);
+    assert!(!first_rollout.exists());
+    assert!(!second_rollout.exists());
+}
+
+#[test]
+fn delete_local_from_paths_undo_restores_duplicate_threads_to_source_databases() {
+    let tmp = tempdir().unwrap();
+    let old_db = tmp.path().join("old.sqlite");
+    let new_db = tmp.path().join("new.sqlite");
+    let rollout = tmp.path().join("rollout.jsonl");
+    let rollout_text = "{\"type\":\"message\",\"payload\":\"original\"}\n";
+    fs::write(&rollout, rollout_text).unwrap();
+    create_codex_thread_db(&old_db, &rollout);
+    create_codex_thread_db(&new_db, &rollout);
+    let db = Connection::open(&new_db).unwrap();
+    db.execute("ALTER TABLE threads ADD COLUMN recency_at INTEGER", [])
+        .unwrap();
+    db.execute("UPDATE threads SET recency_at = 42 WHERE id = 't1'", [])
+        .unwrap();
+    drop(db);
+
+    let backups = BackupStore::new(tmp.path().join("backups"));
+    let deleted = delete_local_from_paths(
+        vec![old_db.clone(), new_db.clone()],
+        backups.clone(),
+        &session("t1", "Codex Thread"),
+    );
+    let token = deleted.undo_token.as_deref().unwrap();
+
+    assert_eq!(thread_count(&old_db, "t1"), 0);
+    assert_eq!(thread_count(&new_db, "t1"), 0);
+    assert!(!rollout.exists());
+
+    let restored = SQLiteStorageAdapter::new(&old_db, backups)
+        .with_allowed_db_paths(vec![old_db.clone(), new_db.clone()])
+        .undo(token);
+
+    assert_eq!(restored.status, DeleteStatus::Undone);
+    assert_eq!(thread_count(&old_db, "t1"), 1);
+    assert_eq!(thread_count(&new_db, "t1"), 1);
+    assert_eq!(fs::read_to_string(&rollout).unwrap(), rollout_text);
+    let db = Connection::open(&new_db).unwrap();
+    assert_eq!(
+        db.query_row(
+            "SELECT recency_at FROM threads WHERE id = 't1'",
+            [],
+            |row| row.get::<_, i64>(0)
+        )
+        .unwrap(),
+        42
+    );
+}
+
+#[test]
+fn grouped_undo_preflights_all_databases_before_restoring_any() {
+    let tmp = tempdir().unwrap();
+    let first_db = tmp.path().join("first.sqlite");
+    let second_db = tmp.path().join("second.sqlite");
+    let rollout = tmp.path().join("rollout.jsonl");
+    fs::write(&rollout, "{\"type\":\"message\"}\n").unwrap();
+    create_codex_thread_db(&first_db, &rollout);
+    create_codex_thread_db(&second_db, &rollout);
+    let backups = BackupStore::new(tmp.path().join("backups"));
+    let deleted = delete_local_from_paths(
+        vec![first_db.clone(), second_db.clone()],
+        backups.clone(),
+        &session("t1", "Codex Thread"),
+    );
+    let token = deleted.undo_token.as_deref().unwrap();
+    Connection::open(&second_db)
+        .unwrap()
+        .execute(
+            "ALTER TABLE threads RENAME COLUMN title TO renamed_title",
+            [],
+        )
+        .unwrap();
+
+    let restored = SQLiteStorageAdapter::new(&first_db, backups)
+        .with_allowed_db_paths(vec![first_db.clone(), second_db.clone()])
+        .undo(token);
+
+    assert_eq!(restored.status, DeleteStatus::Failed);
+    assert!(restored.message.contains("no column named title"));
+    assert_eq!(thread_count(&first_db, "t1"), 0);
+    assert_eq!(thread_count(&second_db, "t1"), 0);
+    assert!(!rollout.exists());
+}
+
+#[test]
+fn undo_rejects_source_database_outside_allowed_paths() {
+    let tmp = tempdir().unwrap();
+    let allowed_db = tmp.path().join("allowed.sqlite");
+    let outside_db = tmp.path().join("outside.sqlite");
+    create_supported_db(&allowed_db);
+    create_supported_db(&outside_db);
+    let backups = BackupStore::new(tmp.path().join("backups"));
+    let deleted = SQLiteStorageAdapter::new(&outside_db, backups.clone())
+        .delete_local(&session("s1", "First"));
+    let token = deleted.undo_token.as_deref().unwrap();
+
+    let restored = SQLiteStorageAdapter::new(&allowed_db, backups).undo(token);
+
+    assert_eq!(restored.status, DeleteStatus::Failed);
+    assert!(
+        restored
+            .message
+            .contains("not an allowed local storage path")
+    );
+    let outside = Connection::open(&outside_db).unwrap();
+    assert_eq!(
+        outside
+            .query_row("SELECT COUNT(*) FROM sessions", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
     );
 }
 

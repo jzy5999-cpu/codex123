@@ -385,6 +385,7 @@
       }
       .codex-delete-confirm-content {
         width: min(420px, calc(100vw - 48px));
+        max-height: min(760px, calc(100vh - 48px));
         border: 1px solid rgba(15,23,42,.12);
         border-radius: 12px;
         background: #ffffff;
@@ -392,14 +393,27 @@
         font: 14px system-ui, sans-serif;
         box-shadow: 0 24px 80px rgba(15,23,42,.22);
         padding: 18px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
       .codex-delete-confirm-title { font-size: 16px; font-weight: 650; }
-      .codex-delete-confirm-message { margin-top: 8px; color: #4b5563; line-height: 1.45; }
+      .codex-delete-confirm-message {
+        margin-top: 8px;
+        color: #4b5563;
+        line-height: 1.45;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-wrap: anywhere;
+      }
       .codex-delete-confirm-actions {
         display: flex;
         justify-content: flex-end;
         gap: 10px;
-        margin-top: 18px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(15,23,42,.12);
+        flex: 0 0 auto;
       }
       .codex-delete-confirm-actions button {
         border: 1px solid #d1d5db;
@@ -4935,6 +4949,7 @@
       undo.addEventListener("click", async () => {
         const result = await postJson("/undo", { undo_token: undoToken });
         toast.textContent = result.message || "撤销完成";
+        if (result.status === "undone") window.location.reload();
         setTimeout(() => toast.remove(), 5000);
       });
       toast.appendChild(undo);
