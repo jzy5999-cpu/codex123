@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use codex_plus_core::launcher::{
-    DefaultLaunchHooks, LaunchHooks, LaunchOptions, launch_and_inject_with_hooks,
+    BridgeReinjector, DefaultLaunchHooks, LaunchHooks, LaunchOptions, launch_and_inject_with_hooks,
 };
 use codex_plus_core::models::{DeleteResult, ExportResult, SessionRef};
 use codex_plus_core::routes::{BridgeContext, BridgeDataService, BridgeRuntimeService};
@@ -19,6 +19,7 @@ struct LauncherHooks {
     core: Arc<DefaultLaunchHooks>,
     data: Arc<LauncherDataService>,
     runtime: Arc<LauncherRuntimeService>,
+    bridge_context: Arc<Mutex<Option<BridgeContext>>>,
 }
 
 impl Default for LauncherHooks {
@@ -30,7 +31,18 @@ impl Default for LauncherHooks {
                 9229,
                 default_user_script_manager(),
             )),
+            bridge_context: Arc::new(Mutex::new(None)),
         }
+    }
+}
+
+impl LauncherHooks {
+    fn watchdog_bridge_context(&self) -> anyhow::Result<BridgeContext> {
+        self.bridge_context
+            .lock()
+            .map_err(|_| anyhow::anyhow!("bridge context lock poisoned"))?
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("bridge context is not initialized"))
     }
 }
 
@@ -291,11 +303,16 @@ impl LaunchHooks for LauncherHooks {
         app_dir: &Path,
     ) -> anyhow::Result<Option<BridgeContext>> {
         self.runtime.set_debug_port(debug_port);
-        Ok(Some(BridgeContext::core_with_data_and_app_dir(
+        let ctx = BridgeContext::core_with_data_and_app_dir(
             self.runtime.clone(),
             self.data.clone(),
             app_dir.to_path_buf(),
-        )))
+        );
+        *self
+            .bridge_context
+            .lock()
+            .map_err(|_| anyhow::anyhow!("bridge context lock poisoned"))? = Some(ctx.clone());
+        Ok(Some(ctx))
     }
 
     async fn inject_bridge(
@@ -309,6 +326,22 @@ impl LaunchHooks for LauncherHooks {
 
     async fn inject(&self, debug_port: u16, helper_port: u16) -> anyhow::Result<()> {
         self.core.inject(debug_port, helper_port).await
+    }
+
+    async fn start_bridge_watchdog(&self, debug_port: u16, helper_port: u16) -> anyhow::Result<()> {
+        let ctx = self.watchdog_bridge_context()?;
+        let runtime = self.runtime.clone();
+        let reinjector: BridgeReinjector = Arc::new(move || {
+            let ctx = ctx.clone();
+            let runtime = runtime.clone();
+            Box::pin(
+                async move { inject_with_context(debug_port, helper_port, ctx, runtime).await },
+            )
+        });
+        self.core.set_bridge_reinjector(reinjector).await;
+        self.core
+            .start_bridge_watchdog(debug_port, helper_port)
+            .await
     }
 
     async fn write_status(&self, status: &str) {

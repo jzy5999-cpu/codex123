@@ -79,6 +79,10 @@ pub fn pick_page_target(targets: &[CdpTarget]) -> anyhow::Result<CdpTarget> {
 }
 
 fn is_ignored_codex_page_target(target: &CdpTarget) -> bool {
+    is_avatar_overlay_page_target(target) || is_quick_chat_page_target(target)
+}
+
+pub fn is_avatar_overlay_page_target(target: &CdpTarget) -> bool {
     let haystack = format!("{} {}", target.title, target.url).to_lowercase();
     [
         "initialroute=%2favatar-overlay",
@@ -88,4 +92,20 @@ fn is_ignored_codex_page_target(target: &CdpTarget) -> bool {
     ]
     .iter()
     .any(|marker| haystack.contains(marker))
+}
+
+pub fn is_quick_chat_page_target(target: &CdpTarget) -> bool {
+    if target.target_type != "page" {
+        return false;
+    }
+    let url = target.url.to_lowercase();
+    if !url.starts_with("app://") {
+        return false;
+    }
+    [
+        "initialroute=%2fchatgpt%2fquick-chat",
+        "initialroute=/chatgpt/quick-chat",
+    ]
+    .iter()
+    .any(|marker| url.contains(marker))
 }

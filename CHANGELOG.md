@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.26 - 2026-08-02
+
+- 选择性合入 CodexPlusPlus `v1.2.43`-`v1.2.44` 中对 codex123 有用的稳定性修复，继续只更新 macOS 版。
+- 重注入 watchdog 现在复用 launcher 创建的完整 BridgeContext，避免页面刷新或浏览器标识变化后 data bridge 退回 core fallback，影响会话移动、导出和脚本热重载等能力。
+- Codex 26.707+ 缺少旧 `app-server-manager-signals-*` asset 时，注入脚本会从当前页面资源中发现候选 app-server request client，提升模型白名单和插件市场补丁兼容性。
+- 官方混合 API / 远控相关模式会保持本地 protocol proxy 启动，并写入受管理的 `openai_base_url`；清除配置时只移除 codex123 管理的本地代理地址，不覆盖用户自定义地址。
+- 插件市场在 API Key 模式遇到远程 catalog 认证错误时回退本地结果，并隔离 remote-only 查询，避免把本地 fallback 混入远程专用搜索。
+- Provider Sync 默认路径现在尊重 `CODEX_HOME`，与 codex123 其他 Codex home 解析保持一致。
+- CDP 注入目标排除 Quick Chat 辅助 renderer；模型白名单注入收窄到明确的模型响应和指定 Statsig 配置，降低误伤页面状态的风险。
+- 本轮未合入 Windows launcher port 修复、Dream Skin companion、Sub2API 倍率显示、上游赞助/QQ群/微信群文案或上游品牌内容。
+
 ## 0.2.25 - 2026-07-25
 
 - 选择性合入 CodexPlusPlus `v1.2.42` 中对 codex123 有用的稳定性修复：`CODEX_SQLITE_HOME` 场景下会话数据库、thread reference 数据库和日志数据库路径解析保持一致。

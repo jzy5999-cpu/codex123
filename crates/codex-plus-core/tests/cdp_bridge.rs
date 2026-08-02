@@ -129,7 +129,7 @@ fn injection_script_unlocks_nested_disabled_plugin_install_buttons() {
 fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
     let script = assets::injection_script(57321);
 
-    assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"10\""));
+    assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"14\""));
     assert!(script.contains("codexPluginLegacyEntryUnlockBeforeVersion = \"26.601.21317\""));
     assert!(script.contains("pluginMarketplaceUnlock: true"));
     assert!(script.contains("settings.pluginMarketplaceUnlock = false"));

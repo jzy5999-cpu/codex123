@@ -10,6 +10,10 @@ const DEFAULT_PROVIDER: &str = "openai";
 const SESSION_DIRS: [&str; 2] = ["sessions", "archived_sessions"];
 const BACKUP_KEEP_COUNT: usize = 5;
 
+fn default_codex_home_dir() -> PathBuf {
+    codex_plus_core::relay_config::default_codex_home_dir()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderSyncStatus {
@@ -61,7 +65,7 @@ pub fn run_provider_sync_with_target(
 ) -> ProviderSyncResult {
     let home = codex_home
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| dirs_home().join(".codex"));
+        .unwrap_or_else(default_codex_home_dir);
     let requested_target = match target_provider {
         Some(value) => match normalize_requested_provider(value) {
             Ok(provider) => Some(provider),
@@ -184,7 +188,7 @@ pub fn run_provider_sync_with_target(
 pub fn current_provider(codex_home: Option<&Path>) -> String {
     let home = codex_home
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| dirs_home().join(".codex"));
+        .unwrap_or_else(default_codex_home_dir);
     read_current_provider(&home.join("config.toml"))
 }
 
@@ -204,13 +208,6 @@ fn result(
         changed_session_files,
         sqlite_rows_updated,
     }
-}
-
-fn dirs_home() -> PathBuf {
-    std::env::var_os("USERPROFILE")
-        .or_else(|| std::env::var_os("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn read_current_provider(path: &Path) -> String {

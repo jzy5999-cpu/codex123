@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,6 +17,13 @@ use tokio::sync::Mutex;
 
 use crate::settings::{BackendSettings, SettingsStore, normalize_codex_extra_args};
 use crate::status::{LaunchStatus, StatusStore};
+
+/// Asynchronous callback used by the bridge watchdog to restore a launcher-specific bridge.
+///
+/// Callers that install a custom [`crate::routes::BridgeContext`] should configure this callback
+/// before starting the watchdog. Without one, the watchdog falls back to the core bridge injector.
+pub type BridgeReinjector =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> + Send + Sync>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodexLaunch {
@@ -206,6 +215,7 @@ pub struct DefaultLaunchHooks {
     child: Mutex<Option<Child>>,
     helper: Mutex<Option<HelperRuntime>>,
     bridge_watchdog: Mutex<Option<BridgeWatchdogRuntime>>,
+    bridge_reinjector: Mutex<Option<BridgeReinjector>>,
     computer_use_cleanup_watchdog: Mutex<Option<ComputerUseCleanupWatchdogRuntime>>,
 }
 
@@ -249,7 +259,8 @@ where
         if settings.provider_sync_enabled {
             hooks.run_provider_sync(&settings).await?;
         }
-        let protocol_proxy_enabled = relay_protocol_proxy_enabled(&settings);
+        let protocol_proxy_enabled = relay_protocol_proxy_enabled(&settings)
+            || remote_control_provider_proxy_enabled(&settings);
         if protocol_proxy_enabled {
             helper_port = crate::protocol_proxy::DEFAULT_PROTOCOL_PROXY_PORT;
         }
@@ -337,6 +348,11 @@ fn relay_protocol_proxy_enabled(settings: &BackendSettings) -> bool {
     settings.active_relay_profile().protocol == crate::settings::RelayProtocol::ChatCompletions
 }
 
+fn remote_control_provider_proxy_enabled(settings: &BackendSettings) -> bool {
+    let profile = settings.active_relay_profile();
+    profile.relay_mode == crate::settings::RelayMode::Official && profile.official_mix_api_key
+}
+
 pub trait IntoLaunchHooks {
     fn into_launch_hooks(self) -> Arc<dyn LaunchHooks>;
 }
@@ -365,6 +381,11 @@ impl IntoLaunchHooks for DefaultLaunchHooks {
 impl DefaultLaunchHooks {
     pub fn shared() -> Arc<dyn LaunchHooks> {
         Arc::new(Self::default())
+    }
+
+    /// Configures the launcher-specific callback used by subsequent watchdog reinjections.
+    pub async fn set_bridge_reinjector(&self, reinjector: BridgeReinjector) {
+        *self.bridge_reinjector.lock().await = Some(reinjector);
     }
 }
 
@@ -554,6 +575,7 @@ impl LaunchHooks for DefaultLaunchHooks {
     }
 
     async fn start_bridge_watchdog(&self, debug_port: u16, helper_port: u16) -> anyhow::Result<()> {
+        let bridge_reinjector = self.bridge_reinjector.lock().await.clone();
         let (shutdown, mut shutdown_rx) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
@@ -561,7 +583,11 @@ impl LaunchHooks for DefaultLaunchHooks {
                 tokio::select! {
                     _ = &mut shutdown_rx => break,
                     _ = interval.tick() => {
-                        let _ = check_and_reinject_bridge(debug_port, helper_port).await;
+                        let _ = check_and_reinject_bridge_inner(
+                            debug_port,
+                            helper_port,
+                            bridge_reinjector.clone(),
+                        ).await;
                     }
                 }
             }
@@ -907,34 +933,37 @@ async fn handle_protocol_proxy_connection(
     remote_addr_text: Option<String>,
 ) -> anyhow::Result<()> {
     let request_json = serde_json::from_str::<serde_json::Value>(request_body).ok();
-    let upstream =
-        match crate::protocol_proxy::open_responses_proxy_request(request_body, request_user_agent)
-            .await
-        {
-            Ok(upstream) => upstream,
-            Err(error) => {
-                let body = serde_json::to_vec(&serde_json::json!({
-                    "status": "failed",
-                    "message": error.to_string()
-                }))?;
-                write_http_response(
-                    stream,
-                    "502 Bad Gateway",
-                    "application/json; charset=utf-8",
-                    &body,
-                )
-                .await?;
-                log_helper_response(
-                    "helper.protocol_proxy_failed",
-                    method,
-                    path,
-                    "502 Bad Gateway",
-                    remote_addr_text,
-                );
-                stream.shutdown().await?;
-                return Ok(());
-            }
-        };
+    let upstream = match crate::protocol_proxy::open_responses_proxy_request_for_path(
+        request_body,
+        request_user_agent,
+        path,
+    )
+    .await
+    {
+        Ok(upstream) => upstream,
+        Err(error) => {
+            let body = serde_json::to_vec(&serde_json::json!({
+                "status": "failed",
+                "message": error.to_string()
+            }))?;
+            write_http_response(
+                stream,
+                "502 Bad Gateway",
+                "application/json; charset=utf-8",
+                &body,
+            )
+            .await?;
+            log_helper_response(
+                "helper.protocol_proxy_failed",
+                method,
+                path,
+                "502 Bad Gateway",
+                remote_addr_text,
+            );
+            stream.shutdown().await?;
+            return Ok(());
+        }
+    };
 
     if !upstream.is_success() {
         let status = upstream.status();
@@ -1325,6 +1354,14 @@ async fn retry_injection(debug_port: u16, helper_port: u16) -> anyhow::Result<()
 }
 
 pub async fn check_and_reinject_bridge(debug_port: u16, helper_port: u16) -> bool {
+    check_and_reinject_bridge_inner(debug_port, helper_port, None).await
+}
+
+async fn check_and_reinject_bridge_inner(
+    debug_port: u16,
+    helper_port: u16,
+    bridge_reinjector: Option<BridgeReinjector>,
+) -> bool {
     let healthy = match bridge_health_ok(debug_port).await {
         Ok(healthy) => healthy,
         Err(error) => {
@@ -1350,7 +1387,9 @@ pub async fn check_and_reinject_bridge(debug_port: u16, helper_port: u16) -> boo
             "helper_port": helper_port
         }),
     );
-    match retry_injection(debug_port, helper_port).await {
+    let default_reinjector: BridgeReinjector =
+        Arc::new(move || Box::pin(async move { retry_injection(debug_port, helper_port).await }));
+    match run_bridge_reinjector(bridge_reinjector, default_reinjector).await {
         Ok(()) => {
             let _ = crate::diagnostic_log::append_diagnostic_log(
                 "bridge.reinject_ok",
@@ -1372,6 +1411,16 @@ pub async fn check_and_reinject_bridge(debug_port: u16, helper_port: u16) -> boo
             );
             false
         }
+    }
+}
+
+async fn run_bridge_reinjector(
+    bridge_reinjector: Option<BridgeReinjector>,
+    default_reinjector: BridgeReinjector,
+) -> anyhow::Result<()> {
+    match bridge_reinjector {
+        Some(reinject) => reinject().await,
+        None => default_reinjector().await,
     }
 }
 
