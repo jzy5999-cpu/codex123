@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.27 - 2026-08-09
+
+- 选择性合入 CodexPlusPlus `v1.2.45` 中对 codex123 有用的兼容性修复，继续只更新 macOS Apple Silicon 版。
+- 中转协议代理会忽略没有 `content` 的 Responses 元数据项，避免 DeepSeek 等 Chat Completions 上游收到空消息。
+- Codex 新建会话和模型请求补丁提升版本并支持重新注入，继续使用新版 Codex 原生会话流程，不恢复旧 projectless 强制改写。
+- 应用内更新增加连接/下载超时、分阶段诊断日志和更准确的长耗时提示。
+- 脚本市场新增名称、作者、描述和标签搜索，并支持板块/列表两种展示方式。
+- 新建纯 API 供应商不再写入 `requires_openai_auth`；已有纯 API 配置保持不变，远控兼容中转仍强制 `requires_openai_auth = true` 并保护官方 ChatGPT 登录态。
+- 本轮不合入 Windows、Dream Skin、Stepwise、VLM、上游赞助/交流群或品牌内容。
+
 ## 0.2.26 - 2026-08-02
 
 - 选择性合入 CodexPlusPlus `v1.2.43`-`v1.2.44` 中对 codex123 有用的稳定性修复，继续只更新 macOS 版。

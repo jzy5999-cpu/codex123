@@ -654,7 +654,7 @@ experimental_bearer_token = "sk-remote"
 }
 
 #[test]
-fn apply_pure_api_config_switches_auth_json_and_writes_provider_token() {
+fn apply_pure_api_config_switches_auth_json_without_openai_login_requirement() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(
         temp.path().join("auth.json"),
@@ -684,7 +684,7 @@ fn apply_pure_api_config_switches_auth_json_and_writes_provider_token() {
     assert!(config.contains("[model_providers.custom]"));
     assert!(config.contains(r#"name = "custom""#));
     assert!(config.contains(r#"wire_api = "responses""#));
-    assert!(config.contains("requires_openai_auth = true"));
+    assert!(!config.contains("requires_openai_auth"));
     assert!(config.contains(r#"base_url = "http://192.168.188.245:3001/v1""#));
     assert!(config.contains(r#"experimental_bearer_token = "sk-test-redacted""#));
 }
@@ -2132,7 +2132,7 @@ experimental_bearer_token = "sk-new"
     assert!(config.contains("[model_providers.custom]"));
     assert!(config.contains(r#"name = "custom""#));
     assert!(config.contains(r#"wire_api = "responses""#));
-    assert!(config.contains("requires_openai_auth = true"));
+    assert!(!config.contains("requires_openai_auth"));
     assert!(config.contains(r#"base_url = "https://relay.example/v1""#));
     assert!(!config.contains("experimental_bearer_token"));
     assert!(!config.contains("live_provider"));
@@ -2400,7 +2400,7 @@ experimental_bearer_token = "sk-new"
     assert!(config.contains(r#"name = "custom""#));
     assert!(config.contains(r#"base_url = "https://max2.jojocode.com/v1""#));
     assert!(config.contains(r#"wire_api = "responses""#));
-    assert!(config.contains("requires_openai_auth = true"));
+    assert!(!config.contains("requires_openai_auth"));
     assert!(!config.contains("experimental_bearer_token"));
 }
 

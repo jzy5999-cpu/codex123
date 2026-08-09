@@ -62,8 +62,8 @@
   const codexThreadServiceTierKey = "codexThreadServiceTierOverrides";
   const codexThreadServiceTierMaxEntries = 120;
   const codexThreadServiceTierDraftBindWindowMs = 60 * 1000;
-  const codexServiceTierRequestOverrideVersion = "2";
-  const codexAppServerModelRequestPatchVersion = "3";
+  const codexServiceTierRequestOverrideVersion = "5";
+  const codexAppServerModelRequestPatchVersion = "4";
   const codexPluginMarketplaceUnlockVersion = "14";
   const codexPluginLegacyEntryUnlockBeforeVersion = "26.601.21317";
   const codexThreadScrollMaxEntries = 120;
@@ -1687,11 +1687,9 @@
         const dispatcherClass = typeof module.v === "function" && String(module.v).includes("dispatchMessage") ? module.v : null;
         const dispatcher = dispatcherClass?.getInstance?.();
         if (!dispatcher || typeof dispatcher.dispatchMessage !== "function") throw new Error("Codex dispatcher unavailable");
-        if (dispatcher.__codexServiceTierOriginalDispatchMessage) {
-          window.__codexServiceTierRequestOverrideInstalled = codexServiceTierRequestOverrideVersion;
-          return;
+        if (!dispatcher.__codexServiceTierOriginalDispatchMessage) {
+          dispatcher.__codexServiceTierOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
         }
-        dispatcher.__codexServiceTierOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
         dispatcher.dispatchMessage = (type, payload) => {
           const message = codexServiceTierRequestOverride({ ...(payload || {}), type });
           const nextType = message?.type || type;

@@ -30,7 +30,9 @@ import {
   ExternalLink,
   Hammer,
   KeyRound,
+  LayoutGrid,
   LayoutDashboard,
+  List,
   Link2,
   FileCode2,
   Moon,
@@ -44,6 +46,7 @@ import {
   RefreshCw,
   Rocket,
   Save,
+  Search,
   Settings,
   ShieldCheck,
   Sun,
@@ -942,10 +945,45 @@ export function App() {
             asset_url: update.assetUrl,
           }
         : null;
+    const startedAt = Date.now();
+    if (release) {
+      setUpdate((current) => ({
+        ...(current ?? { status: "downloading", message: "", currentVersion: overview?.current_version ?? "-" }),
+        status: "downloading",
+        message: "正在准备安装包下载…",
+        progress: 8,
+      }));
+    }
+    const progressTimer = release
+      ? window.setInterval(() => {
+          setUpdate((current) => {
+            if (!current || current.status !== "downloading") return current;
+            const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+            const nextProgress = elapsedSeconds < 3
+              ? Math.min(24, (current.progress ?? 8) + 4)
+              : elapsedSeconds < 15
+                ? Math.min(68, (current.progress ?? 24) + 3)
+                : elapsedSeconds < 45
+                  ? Math.min(86, (current.progress ?? 68) + 1)
+                  : Math.min(99, (current.progress ?? 86) + 0.2);
+            const message = elapsedSeconds < 3
+              ? "正在获取 GitHub Release 信息…"
+              : elapsedSeconds < 15
+                ? "正在下载安装包…"
+                : elapsedSeconds < 45
+                  ? "正在写入安装包…"
+                  : "下载或启动耗时较长，请保持窗口打开；完成或失败后会自动更新状态。";
+            return { ...current, message, progress: nextProgress };
+          });
+        }, 500)
+      : null;
     const result = await run(() => call<UpdateResult>("perform_update", { release }));
+    if (progressTimer !== null) window.clearInterval(progressTimer);
     if (result) {
       setUpdate(result);
       showNotice("更新安装", result.message, result.status);
+    } else if (release) {
+      setUpdate((current) => current ? { ...current, status: "failed", message: "更新调用失败。", progress: 0 } : current);
     }
   };
 
@@ -2140,6 +2178,26 @@ function UserScriptsScreen({ settings, market, actions }: { settings: SettingsRe
   const inventory = settings?.user_scripts;
   const scripts = inventory?.scripts ?? [];
   const marketScripts = market?.market.scripts ?? [];
+  const [marketSearch, setMarketSearch] = useState("");
+  const [marketView, setMarketView] = useState<"grid" | "list">("grid");
+  const filteredMarketScripts = useMemo(() => {
+    const query = marketSearch.trim().toLocaleLowerCase();
+    if (!query) return marketScripts;
+    return marketScripts.filter((script) => {
+      const haystack = [
+        script.name,
+        script.author,
+        script.description,
+        script.version,
+        script.homepage,
+        ...script.tags,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      return haystack.includes(query);
+    });
+  }, [marketSearch, marketScripts]);
   const installedCount = marketScripts.filter((script) => script.installed).length;
   return (
     <>
@@ -2173,14 +2231,54 @@ function UserScriptsScreen({ settings, market, actions }: { settings: SettingsRe
         </CardContent>
       </Panel>
       <Panel>
-        <CardHead title="市场脚本" detail={market?.market.updatedAt ? `清单更新时间：${market.market.updatedAt}` : "从 GitHub 静态清单加载"} />
+        <CardHead
+          title="市场脚本"
+          detail={market?.market.updatedAt
+            ? `清单更新时间：${market.market.updatedAt}，当前显示 ${filteredMarketScripts.length} / ${marketScripts.length}`
+            : "从 GitHub 静态清单加载"}
+        />
         <CardContent>
-          {marketScripts.length ? (
-            <div className="script-market-grid">
-              {marketScripts.map((script) => (
-                <MarketScriptCard key={script.id} script={script} actions={actions} />
-              ))}
+          <div className="script-market-toolbar">
+            <div className="script-market-search">
+              <Search className="h-4 w-4" />
+              <Input
+                aria-label="搜索市场脚本"
+                onChange={(event) => setMarketSearch(event.currentTarget.value)}
+                placeholder="搜索名称、作者、描述或标签"
+                value={marketSearch}
+              />
             </div>
+            <div className="script-market-view-toggle" role="group" aria-label="脚本市场排版">
+              <Button
+                aria-pressed={marketView === "grid"}
+                onClick={() => setMarketView("grid")}
+                size="sm"
+                variant={marketView === "grid" ? "secondary" : "ghost"}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                板块
+              </Button>
+              <Button
+                aria-pressed={marketView === "list"}
+                onClick={() => setMarketView("list")}
+                size="sm"
+                variant={marketView === "list" ? "secondary" : "ghost"}
+              >
+                <List className="h-4 w-4" />
+                列表
+              </Button>
+            </div>
+          </div>
+          {marketScripts.length ? (
+            filteredMarketScripts.length ? (
+              <div className={marketView === "list" ? "script-market-list" : "script-market-grid"}>
+                {filteredMarketScripts.map((script) => (
+                  <MarketScriptCard key={script.id} script={script} actions={actions} view={marketView} />
+                ))}
+              </div>
+            ) : (
+              <div className="empty">没有匹配的市场脚本。</div>
+            )
           ) : (
             <div className="empty">{market?.status === "failed" ? market.message : "点击刷新市场加载远程脚本。"}</div>
           )}
@@ -2980,10 +3078,10 @@ function SortableRelayProfileCard({
   );
 }
 
-function MarketScriptCard({ script, actions }: { script: ScriptMarketItem; actions: Actions }) {
+function MarketScriptCard({ script, actions, view = "grid" }: { script: ScriptMarketItem; actions: Actions; view?: "grid" | "list" }) {
   const status = script.updateAvailable ? "可更新" : script.installed ? `已安装 ${script.installedVersion}` : "未安装";
   return (
-    <div className="script-market-card">
+    <div className="script-market-card" data-view={view}>
       <div className="script-market-title">
         <div>
           <strong>{script.name}</strong>
@@ -4768,27 +4866,29 @@ function withGeneratedRelayFiles(profile: RelayProfile): RelayProfile {
   if (profile.relayMode === "remoteRelay") {
     return {
       ...profile,
-      configContents: buildRelayConfigToml(profile, { includeBearerToken: true }),
+      configContents: buildRelayConfigToml(profile, { includeBearerToken: true, requiresOpenAiAuth: true }),
       authContents: buildRemoteRelayAuthJson(profile.authContents),
     };
   }
   if (profile.relayMode === "official") {
     return {
       ...profile,
-      configContents: profile.officialMixApiKey ? buildRelayConfigToml(profile, { includeBearerToken: true }) : "",
+      configContents: profile.officialMixApiKey
+        ? buildRelayConfigToml(profile, { includeBearerToken: true, requiresOpenAiAuth: true })
+        : "",
       authContents: profile.authContents || "",
     };
   }
   return {
     ...profile,
-    configContents: buildRelayConfigToml(profile, { includeBearerToken: false }),
+    configContents: buildRelayConfigToml(profile, { includeBearerToken: false, requiresOpenAiAuth: false }),
     authContents: buildRelayAuthJson(profile),
   };
 }
 
 function buildRelayConfigToml(
   profile: Pick<RelayProfile, "model" | "baseUrl" | "upstreamBaseUrl" | "apiKey" | "protocol">,
-  options: { includeBearerToken: boolean },
+  options: { includeBearerToken: boolean; requiresOpenAiAuth?: boolean },
 ): string {
   const baseUrl = profile.protocol === "chatCompletions" ? PROTOCOL_PROXY_BASE_URL : profile.baseUrl.trim();
   const apiKey = profile.apiKey.trim();
@@ -4802,7 +4902,7 @@ function buildRelayConfigToml(
     "[model_providers.codex123]",
     'name = "codex123"',
     'wire_api = "responses"',
-    "requires_openai_auth = true",
+    options.requiresOpenAiAuth ? "requires_openai_auth = true" : null,
     `base_url = "${tomlString(baseUrl)}"`,
     options.includeBearerToken ? `experimental_bearer_token = "${tomlString(apiKey)}"` : null,
     "",
@@ -4897,7 +4997,9 @@ function applyRelayProfilePatchToFiles(profile: RelayProfile, patch: Partial<Rel
   }
   if ("baseUrl" in patch || "upstreamBaseUrl" in patch || "protocol" in patch) {
     const baseUrlForConfig = next.protocol === "chatCompletions" ? PROTOCOL_PROXY_BASE_URL : next.upstreamBaseUrl || next.baseUrl;
-    next.configContents = setCodexProviderStringKey(next.configContents, "base_url", baseUrlForConfig);
+    next.configContents = setCodexProviderStringKey(next.configContents, "base_url", baseUrlForConfig, {
+      requiresOpenAiAuth: next.relayMode !== "pureApi",
+    });
     next.configContents = removeRootTomlKey(next.configContents, CHAT_UPSTREAM_BASE_URL_KEY);
   }
   if ("contextWindow" in patch) {
@@ -4912,7 +5014,9 @@ function applyRelayProfilePatchToFiles(profile: RelayProfile, patch: Partial<Rel
   }
   if ("relayMode" in patch || "officialMixApiKey" in patch) {
     if (next.relayMode === "remoteRelay") {
-      next.configContents = next.configContents.trim() ? next.configContents : buildRelayConfigToml(next, { includeBearerToken: true });
+      next.configContents = next.configContents.trim()
+        ? next.configContents
+        : buildRelayConfigToml(next, { includeBearerToken: true, requiresOpenAiAuth: true });
       next.authContents = buildRemoteRelayAuthJson(next.authContents);
     } else if (next.relayMode === "official" && !next.officialMixApiKey) {
       next.configContents = "";
@@ -5044,13 +5148,18 @@ function setRootTomlLine(contents: string, key: string, lineText: string): strin
   return ensureTrailingNewline(lines.join("\n").trimEnd());
 }
 
-function setCodexProviderStringKey(contents: string, key: string, value: string): string {
+function setCodexProviderStringKey(
+  contents: string,
+  key: string,
+  value: string,
+  options: { requiresOpenAiAuth?: boolean } = {},
+): string {
   const provider = rootTomlStringValue(contents, "model_provider") || "custom";
   let next = contents;
   if (!rootTomlStringValue(next, "model_provider")) {
     next = setRootTomlStringKey(next, "model_provider", provider);
   }
-  next = ensureCodexProviderDefaults(next, provider);
+  next = ensureCodexProviderDefaults(next, provider, options.requiresOpenAiAuth !== false);
   return setTomlSectionStringKey(next, `model_providers.${provider}`, key, value);
 }
 
@@ -5063,12 +5172,12 @@ function removeCodexExperimentalBearerToken(contents: string): string {
   return removeTomlSectionKey(contents, `model_providers.${provider}`, "experimental_bearer_token");
 }
 
-function ensureCodexProviderDefaults(contents: string, provider: string): string {
+function ensureCodexProviderDefaults(contents: string, provider: string, requiresOpenAiAuth = true): string {
   let next = contents;
   const section = `model_providers.${provider}`;
   next = setTomlSectionStringKey(next, section, "name", provider);
   next = setTomlSectionStringKey(next, section, "wire_api", "responses");
-  return setTomlSectionBoolKey(next, section, "requires_openai_auth", true);
+  return requiresOpenAiAuth ? setTomlSectionBoolKey(next, section, "requires_openai_auth", true) : next;
 }
 
 function setTomlSectionBoolKey(contents: string, sectionName: string, key: string, value: boolean): string {
