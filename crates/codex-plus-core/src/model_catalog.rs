@@ -58,6 +58,7 @@ pub async fn read_codex_model_catalog() -> Value {
                 "status": "failed",
                 "path": home.join("config.toml").to_string_lossy(),
                 "message": error.to_string(),
+                "service_tier": config_service_tier_value(&home),
                 "model": "",
                 "model_provider": "",
                 "provider_name": "",
@@ -88,6 +89,7 @@ fn relay_profile_model_catalog_value(home: &Path, profile: &RelayProfile) -> Val
     json!({
         "status": if models.is_empty() { "not_configured" } else { "ok" },
         "path": home.join("config.toml").to_string_lossy(),
+        "service_tier": config_service_tier_value(home),
         "model": model,
         "model_provider": profile.id.trim(),
         "provider_name": provider_name,
@@ -146,6 +148,7 @@ pub async fn read_codex_model_catalog_from_home(
             "status": "failed",
             "path": config_path.to_string_lossy(),
             "message": error,
+            "service_tier": service_tier_value(&effective),
             "model": model,
             "model_provider": model_provider,
             "provider_name": provider_name,
@@ -209,6 +212,7 @@ pub async fn read_codex_model_catalog_from_home(
     json!({
         "status": status,
         "path": config_path.to_string_lossy(),
+        "service_tier": service_tier_value(&effective),
         "model": model,
         "model_provider": model_provider,
         "provider_name": provider_name,
@@ -224,6 +228,21 @@ fn codex_home_dir() -> PathBuf {
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(crate::relay_config::default_codex_home_dir)
+}
+
+// Read the effective service tier from config.toml, including profile overrides.
+fn service_tier_value(effective: &HashMap<String, String>) -> Value {
+    let tier = string_value(effective.get("service_tier"));
+    if tier.is_empty() {
+        Value::Null
+    } else {
+        Value::String(tier)
+    }
+}
+
+fn config_service_tier_value(home: &Path) -> Value {
+    let (_, effective, _) = load_codex_config(&home.join("config.toml"));
+    service_tier_value(&effective)
 }
 
 fn load_codex_config(path: &Path) -> (CodexConfig, HashMap<String, String>, Option<String>) {

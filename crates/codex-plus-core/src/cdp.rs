@@ -53,29 +53,45 @@ pub async fn list_targets(debug_port: u16) -> anyhow::Result<Vec<CdpTarget>> {
 }
 
 pub fn pick_page_target(targets: &[CdpTarget]) -> anyhow::Result<CdpTarget> {
-    let pages = targets.iter().filter(|target| {
-        target.target_type == "page"
+    // Only inject into the official desktop surface. Embedded Browser pages
+    // can contain "Codex" in their title or URL and must not receive scripts.
+    if let Some(target) = targets.iter().find(|target| {
+        is_injectable_page_target(target)
             && !is_ignored_codex_page_target(target)
-            && target
-                .web_socket_debugger_url
-                .as_deref()
-                .is_some_and(|url| !url.is_empty())
-    });
-
-    let mut first_page = None;
-    for target in pages {
-        first_page.get_or_insert(target);
-        let haystack = format!("{} {}", target.title, target.url).to_lowercase();
-        if haystack.contains("codex") {
-            return Ok(target.clone());
-        }
-    }
-
-    if let Some(target) = first_page {
+            && (is_codex_app_page_target(target)
+                || is_chatgpt_desktop_page(&target.title, &target.url))
+    }) {
         return Ok(target.clone());
     }
-
     bail!("No injectable Codex page target found")
+}
+
+fn is_injectable_page_target(target: &CdpTarget) -> bool {
+    target.target_type == "page"
+        && target
+            .web_socket_debugger_url
+            .as_deref()
+            .is_some_and(|url| !url.is_empty())
+}
+
+fn is_codex_app_page_target(target: &CdpTarget) -> bool {
+    let Ok(url) = reqwest::Url::parse(target.url.trim()) else {
+        return false;
+    };
+    url.scheme().eq_ignore_ascii_case("app")
+        && url.host_str() == Some("-")
+        && url.path().eq_ignore_ascii_case("/index.html")
+}
+
+fn is_chatgpt_desktop_page(title: &str, url: &str) -> bool {
+    let title = title.trim().to_ascii_lowercase();
+    let url = url.trim().to_ascii_lowercase();
+    title == "chatgpt"
+        && (url == "https://chatgpt.com"
+            || url.starts_with("https://chatgpt.com/")
+            || url == "https://chat.openai.com"
+            || url.starts_with("https://chat.openai.com/")
+            || url.starts_with("data:text/html"))
 }
 
 fn is_ignored_codex_page_target(target: &CdpTarget) -> bool {
@@ -83,29 +99,30 @@ fn is_ignored_codex_page_target(target: &CdpTarget) -> bool {
 }
 
 pub fn is_avatar_overlay_page_target(target: &CdpTarget) -> bool {
-    let haystack = format!("{} {}", target.title, target.url).to_lowercase();
-    [
-        "initialroute=%2favatar-overlay",
-        "initialroute=/avatar-overlay",
-        "/avatar-overlay",
-        "avatar-overlay",
-    ]
-    .iter()
-    .any(|marker| haystack.contains(marker))
+    initial_route(target).is_some_and(|route| route.eq_ignore_ascii_case("/avatar-overlay"))
 }
 
 pub fn is_quick_chat_page_target(target: &CdpTarget) -> bool {
-    if target.target_type != "page" {
-        return false;
+    initial_route(target).is_some_and(|route| {
+        let route = route.to_ascii_lowercase();
+        route == "/chatgpt/quick-chat"
+            || route == "/chatgpt/quick-chat-prewarm"
+            || route.starts_with("/chatgpt/quick-chat/")
+    })
+}
+
+fn initial_route(target: &CdpTarget) -> Option<String> {
+    if !is_injectable_page_target(target) {
+        return None;
     }
-    let url = target.url.to_lowercase();
-    if !url.starts_with("app://") {
-        return false;
+    let url = reqwest::Url::parse(target.url.trim()).ok()?;
+    if !url.scheme().eq_ignore_ascii_case("app")
+        || url.host_str() != Some("-")
+        || !url.path().eq_ignore_ascii_case("/index.html")
+    {
+        return None;
     }
-    [
-        "initialroute=%2fchatgpt%2fquick-chat",
-        "initialroute=/chatgpt/quick-chat",
-    ]
-    .iter()
-    .any(|marker| url.contains(marker))
+    url.query_pairs()
+        .find(|(key, _)| key.eq_ignore_ascii_case("initialRoute"))
+        .map(|(_, value)| value.into_owned())
 }

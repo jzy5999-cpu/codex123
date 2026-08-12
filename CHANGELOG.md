@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.28 - 2026-08-12
+
+- 选择性合入 CodexPlusPlus `v1.2.47` 中对 codex123 有用的当前 Codex 兼容性修复，继续只更新 macOS Apple Silicon 版。
+- Fast/服务层级补丁兼容当前 `app-initial-*` 与 `vscode-api-*` 资源模块，并覆盖新版 `vscode://codex/*` fetch 消息封装；继承模式优先读取 Codex App 设置，再回退到 `config.toml`。
+- 模型目录接口返回当前 `service_tier`，让前端能准确展示 `config.toml` 的有效服务层级。
+- CDP 与用户脚本注入只允许官方 Codex/ChatGPT 桌面主页面，排除应用内嵌浏览器、Avatar Overlay 和 Quick Chat 辅助页面。
+- 顶部菜单兼容当前 `ApplicationMenuTopBar`，分支菜单监听器只响应相关新增节点并清理旧 observer，减少全页面变更带来的重复扫描。
+- HTTPS 客户端启用系统原生证书根，提升企业代理和自签发受信证书环境下的兼容性。
+- 当前 Codex 仅导出函数式 App Server 请求桥时，不再把不可安全替换的旧客户端兼容层误报为失败；该场景会明确标记为跳过，并继续使用 Statsig、JSON 响应和 MCP 模型白名单补丁。
+- 本轮不合入 Windows、Dream Skin、Stepwise、VLM、按模型路由、上游赞助/交流群或品牌内容；不改变外部 launcher + CDP 架构，也不修改官方 App 或 `app.asar`。
+
 ## 0.2.27 - 2026-08-09
 
 - 选择性合入 CodexPlusPlus `v1.2.45` 中对 codex123 有用的兼容性修复，继续只更新 macOS Apple Silicon 版。

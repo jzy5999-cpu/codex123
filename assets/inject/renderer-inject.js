@@ -1,4 +1,8 @@
 (() => {
+  // The launcher targets the Codex app page, but keep a renderer-side guard
+  // so this bundle cannot create UI in embedded browser documents.
+  const codexPlusIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
+  if (!codexPlusIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
   const helperBase = window.__CODEX_SESSION_DELETE_HELPER__ || "http://127.0.0.1:57321";
   const buttonClass = "codex-delete-button";
   const exportButtonClass = "codex-export-button";
@@ -62,8 +66,8 @@
   const codexThreadServiceTierKey = "codexThreadServiceTierOverrides";
   const codexThreadServiceTierMaxEntries = 120;
   const codexThreadServiceTierDraftBindWindowMs = 60 * 1000;
-  const codexServiceTierRequestOverrideVersion = "5";
-  const codexAppServerModelRequestPatchVersion = "4";
+  const codexServiceTierRequestOverrideVersion = "6";
+  const codexAppServerModelRequestPatchVersion = "5";
   const codexPluginMarketplaceUnlockVersion = "14";
   const codexPluginLegacyEntryUnlockBeforeVersion = "26.601.21317";
   const codexThreadScrollMaxEntries = 120;
@@ -109,7 +113,7 @@
   const selectors = {
     sidebarThread: "[data-app-action-sidebar-thread-id]",
     threadTitle: "[data-thread-title]",
-    appHeader: ".app-header-tint",
+    appHeader: '[class*="ApplicationMenuTopBar"], .app-header-tint',
     nativeMenuBar: "[class*=\"ms-auto\"][class*=\"flex\"][class*=\"items-center\"]",
     archiveNav: 'button[aria-label="已归档对话"], button[aria-label="Archived conversations"]',
     disabledInstallButton: 'button:disabled, button[aria-disabled="true"], [role="button"][aria-disabled="true"], button[data-disabled], [role="button"][data-disabled], button.cursor-not-allowed, [role="button"].cursor-not-allowed, button.pointer-events-none, [role="button"].pointer-events-none',
@@ -1022,6 +1026,8 @@
   let codexServiceTierState = {
     status: "loading",
     serviceTier: null,
+    configServiceTier: null,
+    serviceTierSource: null,
     message: "正在读取…",
     fastTierValue: "priority",
     controlMode: "inherit",
@@ -1059,6 +1065,7 @@
     const scripts = codexAppAssetCandidateUrls();
     const escaped = String(namePart).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const patterns = [
+      new RegExp(`["'](\\./(?:assets/)?${escaped}[^"']+\\.js)["']`),
       new RegExp(`["'](\\.?/assets/${escaped}[^"']+\\.js)["']`),
       new RegExp(`["']([^"']*/assets/${escaped}[^"']+\\.js)["']`),
     ];
@@ -1140,6 +1147,25 @@
     return candidates;
   }
 
+  function countFunctionOnlyAppServerRequestExports(module) {
+    let count = 0;
+    for (const value of Object.values(module || {})) {
+      if (typeof value !== "function") continue;
+      let source = "";
+      try {
+        source = String(value);
+      } catch {
+        continue;
+      }
+      // Codex 26.803+ exports a small forwarding function such as
+      // `function gm(...) { return client.sendRequest(...) }`, while the
+      // underlying client remains inside the module closure and cannot be
+      // patched safely from the renderer injection layer.
+      if (source.length <= 500 && /\breturn\b[\s\S]*\.sendRequest\s*\(/.test(source)) count += 1;
+    }
+    return count;
+  }
+
   async function loadAppServerRequestModules() {
     const modules = [];
     const sources = [];
@@ -1173,7 +1199,9 @@
     const { modules, sources } = await loadAppServerRequestModules();
     const candidates = [];
     const seen = new Set();
+    let functionOnlyExportCount = 0;
     for (const module of modules) {
+      functionOnlyExportCount += countFunctionOnlyAppServerRequestExports(module);
       for (const candidate of collectAppServerRequestCandidatesFromModule(module)) {
         if (seen.has(candidate)) continue;
         seen.add(candidate);
@@ -1181,15 +1209,57 @@
       }
     }
     const usedFallback = sources.some((source) => !source.endsWith("-"));
-    return { modules, candidates, sources, discovery: usedFallback ? "fallback" : "named-assets" };
+    return { modules, candidates, sources, discovery: usedFallback ? "fallback" : "named-assets", functionOnlyExportCount };
+  }
+
+  function codexSettingStorageFromModule(module, assetPrefix = "") {
+    const values = module && typeof module === "object" ? Object.values(module) : [];
+    const functionSource = (candidate) => {
+      if (typeof candidate !== "function") return "";
+      try {
+        return String(candidate);
+      } catch (_) {
+        return "";
+      }
+    };
+    const getSettingByCapability = () => values.find((candidate) => {
+      const source = functionSource(candidate);
+      return source.includes("get-setting") && source.includes("params") && source.includes("key");
+    });
+    const setSettingByCapability = () => values.find((candidate) => {
+      const source = functionSource(candidate);
+      return source.includes("set-setting") && source.includes("params") && source.includes("key");
+    });
+    let getSetting = null;
+    let setSetting = null;
+    if (assetPrefix.startsWith("setting-storage-")) {
+      getSetting = typeof module?.n === "function" ? module.n : getSettingByCapability();
+      setSetting = typeof module?.s === "function" ? module.s : setSettingByCapability();
+    } else if (assetPrefix.startsWith("app-initial-")) {
+      getSetting = typeof module?.jut === "function" ? module.jut : getSettingByCapability();
+      setSetting = typeof module?.Put === "function" ? module.Put : setSettingByCapability();
+    } else {
+      getSetting = getSettingByCapability();
+      setSetting = setSettingByCapability();
+    }
+    return typeof getSetting === "function" && typeof setSetting === "function"
+      ? { n: getSetting, s: setSetting, assetPrefix }
+      : null;
   }
 
   async function codexSettingStorageModule() {
-    const module = await loadCodexAppModule("setting-storage-");
-    if (typeof module.n !== "function" || typeof module.s !== "function") {
-      throw new Error("Codex setting-storage 接口不可用");
+    const errors = [];
+    for (const assetPrefix of ["setting-storage-", "app-initial-"]) {
+      try {
+        const module = await loadCodexAppModule(assetPrefix);
+        const settingStorage = codexSettingStorageFromModule(module, assetPrefix);
+        if (settingStorage) return settingStorage;
+        errors.push(`${assetPrefix}: setting exports unavailable`);
+      } catch (error) {
+        errors.push(`${assetPrefix}: ${error?.message || String(error)}`);
+      }
     }
-    return module;
+    throw new Error(`Codex setting-storage 接口不可用 (${errors.join("; ")})`);
   }
 
   async function getCodexServiceTierSetting() {
@@ -1214,10 +1284,14 @@
     return codexServiceTierState.fastTierValue || codexServiceTierFallbackFastValue;
   }
 
+  function codexServiceTierInheritedValue() {
+    return codexServiceTierState.serviceTier ?? codexServiceTierState.configServiceTier ?? null;
+  }
+
   function codexServiceTierValueForMode(mode) {
     if (mode === "fast") return codexFastServiceTierValue();
     if (mode === "standard") return null;
-    return codexServiceTierState.serviceTier || null;
+    return codexServiceTierInheritedValue();
   }
 
   function codexServiceTierDefaultModeForControlMode(controlMode, fallback = "inherit") {
@@ -1243,7 +1317,7 @@
     if (controlMode === "global-fast") return codexFastServiceTierValue();
     if (controlMode === "global-standard") return null;
     if (controlMode === "custom") return codexServiceTierValueForMode(codexServiceTierEffectiveThreadMode(threadMode, defaultMode));
-    return codexServiceTierState.serviceTier || null;
+    return codexServiceTierInheritedValue();
   }
 
   function codexServiceTierEffectiveMode(value) {
@@ -1266,15 +1340,24 @@
     return `当前：${serviceTier}`;
   }
 
+  function serviceTierInheritSourceLabel(source) {
+    return source === "config-toml" ? "继承 config.toml" : "继承 Codex 默认设置";
+  }
+
   function serviceTierStatusMessage(
     controlMode = codexServiceTierState.controlMode || "inherit",
     threadMode = codexServiceTierState.threadMode || "inherit",
     effectiveMode = codexServiceTierState.effectiveMode || "standard",
-    defaultMode = codexServiceTierState.defaultMode || "inherit"
+    defaultMode = codexServiceTierState.defaultMode || "inherit",
+    effectiveServiceTier = codexServiceTierState.effectiveServiceTier,
+    serviceTierSource = codexServiceTierState.serviceTierSource
   ) {
     if (codexServiceTierState.status === "loading") return "正在读取…";
     if (codexServiceTierState.status === "failed") return "读取失败";
-    if (controlMode === "inherit") return `继承 config.toml：${effectiveMode}`;
+    if (controlMode === "inherit") {
+      if (effectiveServiceTier == null) return "继承 Codex 默认设置：默认";
+      return `${serviceTierInheritSourceLabel(serviceTierSource)}：${effectiveMode}`;
+    }
     if (controlMode === "global-standard") return "全局 Standard";
     if (controlMode === "global-fast") return "全局 Fast";
     if (threadMode === "inherit") return `自定义：默认 ${defaultMode}`;
@@ -1413,7 +1496,7 @@
     writeThreadServiceTierState(state);
     refreshCodexServiceTierControls();
     const labels = {
-      inherit: "继承 config.toml",
+      inherit: "继承 Codex 默认设置",
       "global-standard": "全局 Standard",
       "global-fast": "全局 Fast",
       custom: "自定义",
@@ -1427,8 +1510,8 @@
         ...codexServiceTierState,
         activeThreadId: "",
         threadMode: "inherit",
-        effectiveServiceTier: codexServiceTierState.serviceTier || null,
-        effectiveMode: codexServiceTierEffectiveMode(codexServiceTierState.serviceTier),
+        effectiveServiceTier: codexServiceTierInheritedValue(),
+        effectiveMode: codexServiceTierEffectiveMode(codexServiceTierInheritedValue()),
         message: "未启用",
       };
       return;
@@ -1450,7 +1533,7 @@
       threadMode,
       effectiveServiceTier,
       effectiveMode,
-      message: serviceTierStatusMessage(controlMode, threadMode, effectiveMode, defaultMode),
+      message: serviceTierStatusMessage(controlMode, threadMode, effectiveMode, defaultMode, effectiveServiceTier, codexServiceTierState.serviceTierSource),
     };
   }
 
@@ -1462,13 +1545,16 @@
     const effectiveMode = codexServiceTierState.effectiveMode || "standard";
     const scope = codexServiceTierState.controlMode === "custom" && codexServiceTierState.threadMode !== "inherit"
       ? `当前 thread：${codexServiceTierState.threadMode}`
-      : serviceTierStatusMessage(codexServiceTierState.controlMode, codexServiceTierState.threadMode, effectiveMode, codexServiceTierState.defaultMode);
+      : serviceTierStatusMessage(codexServiceTierState.controlMode, codexServiceTierState.threadMode, effectiveMode, codexServiceTierState.defaultMode, codexServiceTierState.effectiveServiceTier, codexServiceTierState.serviceTierSource);
     const title = [
       `服务模式：${scope}`,
       "Standard：使用标准处理；不在请求上设置 priority。",
       "Fast：对请求使用 service_tier=\"priority\"，官方说明其延迟更低且更一致，但会按更高价格计费；rate limit 与 Standard 共享，流量快速上涨时可能回落到 Standard。",
     ].join("\n");
     if (effectiveMode === "fast") return { tier: "fast", label: "fast", title };
+    if (codexServiceTierState.controlMode === "inherit" && codexServiceTierState.effectiveServiceTier == null) {
+      return { tier: "default", label: "默认", title };
+    }
     return { tier: "standard", label: "standard", title };
   }
 
@@ -1529,6 +1615,34 @@
     refreshCodexServiceTierBadges();
   }
 
+  async function getConfigTomlServiceTier() {
+    const catalog = await loadCodexModelCatalog();
+    const rawTier = catalog && typeof catalog === "object" ? catalog.service_tier : null;
+    const normalized = String(rawTier || "").trim();
+    return normalized ? normalized : null;
+  }
+
+  async function resolveInheritedServiceTier() {
+    let appSetting = null;
+    let appSettingError = null;
+    try {
+      appSetting = await getCodexServiceTierSetting();
+    } catch (error) {
+      appSettingError = error;
+    }
+    if (appSetting != null && String(appSetting).trim() === "") appSetting = null;
+    let configTier = null;
+    let configError = null;
+    try {
+      configTier = await getConfigTomlServiceTier();
+    } catch (error) {
+      configError = error;
+    }
+    if (appSettingError && configError && appSetting == null && configTier == null) throw appSettingError;
+    const serviceTierSource = appSetting != null ? "codex-app" : (configTier != null ? "config-toml" : null);
+    return { serviceTier: appSetting, configServiceTier: configTier, serviceTierSource };
+  }
+
   async function loadCodexServiceTierState() {
     if (!codexPlusSettings().serviceTierControls) {
       codexServiceTierState = { ...codexServiceTierState, status: "idle", message: "未启用" };
@@ -1538,12 +1652,14 @@
     codexServiceTierState = { ...codexServiceTierState, status: "loading", message: "正在读取…" };
     refreshCodexServiceTierControls();
     try {
-      const serviceTier = await getCodexServiceTierSetting();
+      const { serviceTier, configServiceTier, serviceTierSource } = await resolveInheritedServiceTier();
       codexServiceTierState = {
         ...codexServiceTierState,
         status: "ok",
         serviceTier,
-        message: serviceTierGlobalStatusMessage(serviceTier),
+        configServiceTier,
+        serviceTierSource,
+        message: serviceTierGlobalStatusMessage(serviceTier ?? configServiceTier),
       };
     } catch (error) {
       codexServiceTierState = {
@@ -1628,9 +1744,41 @@
     return nextParams;
   }
 
-  function codexServiceTierRequestOverride(message) {
+  function codexServiceTierRequestOverride(message, skipFetchEnvelope = false) {
     if (!codexPlusSettings().serviceTierControls) return message;
     if (!message || typeof message !== "object") return message;
+    if (!skipFetchEnvelope && message.type === "fetch" && typeof message.url === "string") {
+      const urlPrefix = "vscode://codex/";
+      if (!message.url.startsWith(urlPrefix)) return message;
+      const requestType = message.url.slice(urlPrefix.length).split(/[?#]/, 1)[0];
+      let params = null;
+      let bodyWasString = false;
+      if (typeof message.body === "string") {
+        try {
+          params = JSON.parse(message.body);
+          bodyWasString = true;
+        } catch (_) {
+          return message;
+        }
+      } else if (message.body && typeof message.body === "object") {
+        params = message.body;
+      } else {
+        return message;
+      }
+      if (!params || typeof params !== "object" || Array.isArray(params)) return message;
+      const bodyHadType = Object.prototype.hasOwnProperty.call(params, "type");
+      const originalBodyType = params.type;
+      const logicalMessage = { ...params, type: requestType };
+      const patchedMessage = codexServiceTierRequestOverride(logicalMessage, true);
+      if (patchedMessage === logicalMessage) return message;
+      const nextParams = { ...patchedMessage };
+      delete nextParams.type;
+      if (bodyHadType) nextParams.type = originalBodyType;
+      return {
+        ...message,
+        body: bodyWasString ? JSON.stringify(nextParams) : nextParams,
+      };
+    }
     if (message.type === "send-cli-request-for-host") {
       const method = String(message.method || "");
       const params = applyCodexServiceTierRequestOverride(method, message.params);
@@ -1679,14 +1827,46 @@
     return message;
   }
 
+  function codexServiceTierDispatcherFromModule(module) {
+    const directSingleton = module?.idt;
+    if (directSingleton
+        && typeof directSingleton === "object"
+        && typeof directSingleton.dispatchMessage === "function"
+        && typeof directSingleton.subscribe === "function") {
+      return directSingleton;
+    }
+    const values = module && typeof module === "object" ? Object.values(module) : [];
+    const singleton = values.find((candidate) => candidate
+      && typeof candidate === "object"
+      && typeof candidate.dispatchMessage === "function"
+      && typeof candidate.subscribe === "function");
+    if (singleton) return singleton;
+    const dispatcherClass = values.find((candidate) => typeof candidate === "function"
+      && typeof candidate.getInstance === "function"
+      && String(candidate).includes("dispatchMessage"));
+    return dispatcherClass?.getInstance?.() || null;
+  }
+
+  async function loadCodexServiceTierDispatcher() {
+    const errors = [];
+    for (const assetPrefix of ["setting-storage-", "vscode-api-", "app-initial-"]) {
+      try {
+        const module = await loadCodexAppModule(assetPrefix);
+        const dispatcher = codexServiceTierDispatcherFromModule(module);
+        if (dispatcher) return { dispatcher, assetPrefix };
+        errors.push(`${assetPrefix}: dispatcher export unavailable`);
+      } catch (error) {
+        errors.push(`${assetPrefix}: ${error?.message || String(error)}`);
+      }
+    }
+    throw new Error(`Codex dispatcher unavailable (${errors.join("; ")})`);
+  }
+
   function installCodexServiceTierDispatcherPatch() {
     if (window.__codexServiceTierRequestOverrideInstalled === codexServiceTierRequestOverrideVersion) return;
     const patch = async () => {
       try {
-        const module = await loadCodexAppModule("setting-storage-");
-        const dispatcherClass = typeof module.v === "function" && String(module.v).includes("dispatchMessage") ? module.v : null;
-        const dispatcher = dispatcherClass?.getInstance?.();
-        if (!dispatcher || typeof dispatcher.dispatchMessage !== "function") throw new Error("Codex dispatcher unavailable");
+        const { dispatcher, assetPrefix } = await loadCodexServiceTierDispatcher();
         if (!dispatcher.__codexServiceTierOriginalDispatchMessage) {
           dispatcher.__codexServiceTierOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
         }
@@ -1697,7 +1877,7 @@
           return dispatcher.__codexServiceTierOriginalDispatchMessage(nextType, nextPayload);
         };
         window.__codexServiceTierRequestOverrideInstalled = codexServiceTierRequestOverrideVersion;
-        sendCodexPlusDiagnostic("service_tier_dispatcher_patch_installed", {});
+        sendCodexPlusDiagnostic("service_tier_dispatcher_patch_installed", { assetPrefix });
       } catch (error) {
         sendCodexPlusDiagnostic("service_tier_dispatcher_patch_failed", {
           errorName: error?.name || "",
@@ -2029,7 +2209,7 @@
               <button type="button" class="codex-plus-toggle" data-codex-plus-setting="serviceTierControls"><span></span></button>
             </div>
             <div class="codex-plus-row" data-codex-service-tier-controls="true">
-              <div><div class="codex-plus-row-title">服务模式</div><div class="codex-plus-row-description">继承使用 config.toml 的 service tier；全局模式覆盖全部 thread；自定义允许按 thread 覆盖。</div></div>
+              <div><div class="codex-plus-row-title">服务模式</div><div class="codex-plus-row-description">继承优先读取 Codex 应用内设置，其次读取 config.toml 的 service_tier；全局模式覆盖全部 thread；自定义允许按 thread 覆盖。</div></div>
               <div class="codex-plus-service-tier-control">
                 <div class="codex-plus-service-tier-status" data-codex-service-tier-status="true" data-status="loading">正在读取…</div>
                 <div class="codex-plus-service-tier-actions">
@@ -2040,7 +2220,7 @@
                 </div>
                 <div class="codex-plus-service-tier-actions codex-plus-service-tier-thread-actions">
                   <span class="codex-plus-service-tier-thread-label">当前 thread 覆盖</span>
-                  <button type="button" class="codex-plus-service-tier-button" data-codex-service-tier-thread-inherit="true" title="当前 thread 不单独覆盖，继承 config.toml">继承</button>
+                  <button type="button" class="codex-plus-service-tier-button" data-codex-service-tier-thread-inherit="true" title="当前 thread 不单独覆盖，继承 Codex 默认设置">继承</button>
                   <button type="button" class="codex-plus-service-tier-button" data-codex-service-tier-thread-standard="true" title="仅当前 thread 使用 Standard，并切到自定义模式">Standard</button>
                   <button type="button" class="codex-plus-service-tier-button" data-codex-service-tier-thread-fast="true" title="仅当前 thread 使用 Fast，并切到自定义模式">Fast</button>
                 </div>
@@ -2326,7 +2506,7 @@
 
   function updateFloatingCodexPlusMenuPosition(menu) {
     if (!menu?.classList?.contains(codexPlusMenuFloatingClass)) return;
-    const header = document.querySelector(selectors.appHeader) || document.querySelector("header");
+    const header = document.querySelector(selectors.appHeader);
     if (!header) return;
     const toolbarButtons = Array.from(header.querySelectorAll("button"))
       .map((button) => ({ button, rect: button.getBoundingClientRect() }))
@@ -2345,8 +2525,9 @@
 
     const headerRect = header.getBoundingClientRect();
     if (headerRect.height) {
-      setCssPropIfChanged(menu, "--codex-plus-menu-top", `${headerRect.top}px`);
-      setCssPropIfChanged(menu, "--codex-plus-menu-height", `${headerRect.height}px`);
+      const isApplicationMenuTopBar = header.matches?.('[class*="ApplicationMenuTopBar"]');
+      setCssPropIfChanged(menu, "--codex-plus-menu-top", `${isApplicationMenuTopBar ? Math.max(4, headerRect.top) : headerRect.top}px`);
+      setCssPropIfChanged(menu, "--codex-plus-menu-height", `${isApplicationMenuTopBar ? 28 : headerRect.height}px`);
     }
     menu.style.removeProperty("--codex-plus-menu-right");
   }
@@ -3836,11 +4017,32 @@
   let chatsSortSignature = "";
   let chatsSortLastFetchAt = 0;
 
+  function codexStateApiFromModule(module, assetPrefix = "") {
+    if (assetPrefix.startsWith("vscode-api-")) {
+      return typeof module?.n === "function" ? module.n : null;
+    }
+    if (assetPrefix.startsWith("app-initial-")) {
+      return typeof module?.qut === "function" ? module.qut : null;
+    }
+    return null;
+  }
+
   async function codexStateApi() {
-    codexStateApiPromise = codexStateApiPromise || loadCodexAppModule("vscode-api-");
-    const api = await codexStateApiPromise;
-    if (typeof api.n !== "function") throw new Error("Codex 状态 API 不可用");
-    return api.n;
+    codexStateApiPromise = codexStateApiPromise || (async () => {
+      const errors = [];
+      for (const assetPrefix of ["vscode-api-", "app-initial-"]) {
+        try {
+          const api = await loadCodexAppModule(assetPrefix);
+          const call = codexStateApiFromModule(api, assetPrefix);
+          if (typeof call === "function") return call;
+          errors.push(`${assetPrefix}: state export unavailable`);
+        } catch (error) {
+          errors.push(`${assetPrefix}: ${error?.message || String(error)}`);
+        }
+      }
+      throw new Error(`Codex 状态 API 不可用 (${errors.join("; ")})`);
+    })();
+    return await codexStateApiPromise;
   }
 
   async function codexStateCall(method, params) {
@@ -4329,7 +4531,10 @@
     if (appServerModelRequestPatchDisabled) return;
     const patch = async () => {
       try {
-        const { modules, candidates, sources, discovery } = await loadAppServerRequestCandidates();
+        const { modules, candidates, sources, discovery, functionOnlyExportCount } = await loadAppServerRequestCandidates();
+        // Multiple model-refresh triggers can enter while module discovery is
+        // still awaiting imports. Let the first completed run own the result.
+        if (window.__codexPlusAppServerModelRequestPatchInstalled === codexAppServerModelRequestPatchVersion) return;
         if (modules.length === 0) {
           window.__codexPlusAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
           sendCodexPlusDiagnostic("model_app_server_request_patch_skipped", {
@@ -4351,10 +4556,26 @@
             sources,
             discovery,
           });
+        } else if (functionOnlyExportCount > 0) {
+          // Current Codex exposes only a forwarding function, not the
+          // mutable request-client singleton used by older builds. Treat
+          // this optional layer as unavailable instead of reporting a false
+          // compatibility failure; Statsig/JSON/MCP model patches remain on.
+          appServerModelRequestPatchMissCount = 0;
+          window.__codexPlusAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
+          sendCodexPlusDiagnostic("model_app_server_request_patch_skipped", {
+            reason: "function-export-only",
+            moduleCount: modules.length,
+            candidateCount: candidates.length,
+            functionOnlyExportCount,
+            sources,
+            discovery,
+          });
         } else {
           noteAppServerModelRequestPatchMiss("model_app_server_request_patch_not_found", {
             moduleCount: modules.length,
             candidateCount: candidates.length,
+            functionOnlyExportCount,
             sources,
             discovery,
           });
@@ -5642,7 +5863,7 @@
       const trigger = document.getElementById(labelledBy);
       if (trigger instanceof Element) return trigger;
     }
-    return [...document.querySelectorAll('button')]
+    return [...document.querySelectorAll('.composer-footer button, .composer-footer [role="button"]')]
       .filter((button) => (button.innerText || button.textContent || "").trim() === "main")
       .sort((left, right) => right.getBoundingClientRect().x - left.getBoundingClientRect().x)[0] || null;
   }
@@ -5794,13 +6015,23 @@
   }
 
   function installUpstreamBranchDropdownAdapter() {
-    const adapterVersion = "actual-upstream-refs-v16";
+    const adapterVersion = "actual-upstream-refs-v17";
     window.__codexUpstreamBranchDropdownAdapterVersion = adapterVersion;
     if (window.__codexUpstreamBranchDropdownAdapterInstalled === adapterVersion) return;
+    window.__codexUpstreamBranchDropdownObserver?.disconnect?.();
     window.__codexUpstreamBranchDropdownAdapterInstalled = adapterVersion;
+    let upstreamBranchInjectTimer = null;
+    const schedule = () => {
+      clearTimeout(upstreamBranchInjectTimer);
+      upstreamBranchInjectTimer = setTimeout(() => {
+        injectUpstreamBranchOptions().catch((error) => reportDiagnostic("upstream_branch_inject_failed", { error: error?.message || String(error) }));
+      }, 80);
+    };
     document.addEventListener("click", (event) => {
       rememberStartNewChatProjectContext(event);
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      const control = target?.closest?.('button, [role="button"]');
+      if (control && branchMenuTriggerIsBranchControl(control)) schedule();
       const option = target?.closest?.(`[${upstreamBranchOptionAttribute}]`);
       if (!option) {
         handleNativeBranchSelection(event);
@@ -5821,14 +6052,16 @@
       syncUpstreamBranchMenuSelection(option.closest?.('[role="menu"], [data-radix-menu-content], [cmdk-list]'));
       showToast(`将从 ${upstreamBranchOptionLabel(option) || "upstream/main"} 创建新 worktree`, null);
     }, true);
-    let upstreamBranchInjectTimer = null;
-    const schedule = () => {
-      clearTimeout(upstreamBranchInjectTimer);
-      upstreamBranchInjectTimer = setTimeout(() => {
-        injectUpstreamBranchOptions().catch((error) => reportDiagnostic("upstream_branch_inject_failed", { error: error?.message || String(error) }));
-      }, 80);
+    const branchMenuSelector = '[role="menu"], [data-radix-menu-content], [cmdk-list]';
+    const addedNodeContainsBranchMenu = (node) => {
+      if (!(node instanceof Element)) return false;
+      return node.matches(branchMenuSelector) || !!node.querySelector(branchMenuSelector);
     };
-    new MutationObserver(schedule).observe(document.body || document.documentElement, { childList: true, subtree: true });
+    const observer = new MutationObserver((records) => {
+      if (records.some((record) => [...record.addedNodes].some(addedNodeContainsBranchMenu))) schedule();
+    });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    window.__codexUpstreamBranchDropdownObserver = observer;
     schedule();
   }
 
@@ -5908,14 +6141,11 @@
   }
 
   function installUpstreamPendingWorktreeDispatcherPatch() {
-    const patchVersion = "1";
+    const patchVersion = "2";
     if (window.__codexUpstreamPendingWorktreeDispatcherPatch === patchVersion) return;
     const patch = async () => {
       try {
-        const module = await loadCodexAppModule("setting-storage-");
-        const dispatcherClass = typeof module.v === "function" && String(module.v).includes("dispatchMessage") ? module.v : null;
-        const dispatcher = dispatcherClass?.getInstance?.();
-        if (!dispatcher || typeof dispatcher.dispatchMessage !== "function") throw new Error("Codex dispatcher unavailable");
+        const { dispatcher, assetPrefix } = await loadCodexServiceTierDispatcher();
         if (!dispatcher.__codexUpstreamWorktreeOriginalDispatchMessage) {
           dispatcher.__codexUpstreamWorktreeOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
           dispatcher.dispatchMessage = (type, payload) => {
@@ -5926,6 +6156,7 @@
           };
         }
         window.__codexUpstreamPendingWorktreeDispatcherPatch = patchVersion;
+        sendCodexPlusDiagnostic("upstream_pending_worktree_patch_installed", { assetPrefix });
       } catch (error) {
         sendCodexPlusDiagnostic("upstream_pending_worktree_patch_failed", {
           errorName: error?.name || "",

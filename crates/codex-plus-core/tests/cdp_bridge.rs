@@ -38,6 +38,9 @@ fn bridge_script_defines_expected_globals_and_binding() {
 fn injection_script_prefixes_helper_url_and_version() {
     let script = assets::injection_script(57321);
 
+    assert!(script.contains("window.top !== window"));
+    assert!(script.contains("!window.electronBridge"));
+    assert!(script.contains("!/^app:\\/\\/\\-\\//i.test(window.location.href)"));
     assert!(script.contains("window.__CODEX_SESSION_DELETE_HELPER__"));
     assert!(script.contains("http://127.0.0.1:57321"));
     assert!(script.contains("window.__CODEX_PLUS_VERSION__"));
@@ -246,6 +249,12 @@ fn injection_script_unlocks_custom_model_catalog() {
     assert!(script.contains("patchStatsigModelDynamicConfig"));
     assert!(script.contains("patchModelJsonResponse"));
     assert!(script.contains("installAppServerModelRequestPatch"));
+    assert!(script.contains("codexAppServerModelRequestPatchVersion = \"5\""));
+    assert!(script.contains("countFunctionOnlyAppServerRequestExports"));
+    assert!(script.contains("functionOnlyExportCount"));
+    assert!(script.contains("const { modules, candidates, sources, discovery, functionOnlyExportCount } = await loadAppServerRequestCandidates()"));
+    assert!(script.contains("Let the first completed run own the result"));
+    assert!(script.contains("reason: \"function-export-only\""));
     assert!(script.contains("appServerModelRequestPatchMaxMisses = 8"));
     assert!(script.contains("model_app_server_request_patch_skipped"));
     assert!(script.contains("postJson(\"/settings/get\", {})"));
@@ -267,7 +276,13 @@ fn injection_script_exposes_fast_service_tier_control() {
 
     assert!(script.contains("default-service-tier"));
     assert!(script.contains("setting-storage-"));
+    assert!(script.contains("app-initial-"));
+    assert!(script.contains("vscode-api-"));
     assert!(script.contains("codexAppAssetUrl"));
+    assert!(script.contains("codexSettingStorageFromModule"));
+    assert!(script.contains("codexStateApiFromModule"));
+    assert!(script.contains("loadCodexServiceTierDispatcher"));
+    assert!(script.contains("vscode://codex/"));
     assert!(script.contains("codexThreadServiceTierOverrides"));
     assert!(script.contains("setCodexThreadServiceTierMode"));
     assert!(script.contains("codexServiceTierRequestOverride"));
@@ -314,7 +329,11 @@ fn injection_script_exposes_fast_service_tier_control() {
     assert!(script.contains("codexServiceTierBadgeWired"));
     assert!(script.contains("setAttribute(\"role\", \"button\")"));
     assert!(script.contains("setAttribute(\"tabindex\", \"0\")"));
+    assert!(script.contains("继承 Codex 默认设置"));
     assert!(script.contains("继承 config.toml"));
+    assert!(script.contains("serviceTierInheritSourceLabel"));
+    assert!(script.contains("resolveInheritedServiceTier"));
+    assert!(script.contains("catalog.service_tier"));
     assert!(script.contains("service_tier=\\\"priority\\\""));
     assert!(script.contains("当前 thread"));
     assert!(script.contains("standard"));
@@ -346,6 +365,11 @@ fn injection_script_installs_upstream_branch_dropdown_adapter() {
     assert!(script.contains("data-base-branch"));
     assert!(script.contains("data-project-id"));
     assert!(script.contains("MutationObserver"));
+    assert!(script.contains("actual-upstream-refs-v17"));
+    assert!(script.contains("__codexUpstreamBranchDropdownObserver?.disconnect?.()"));
+    assert!(script.contains("record.addedNodes"));
+    assert!(script.contains("addedNodeContainsBranchMenu"));
+    assert!(!script.contains("new MutationObserver(schedule)"));
     assert!(script.contains("upstreamWorktreePayloadFromSelection"));
     assert!(script.contains("readUpstreamBranchSelection"));
     assert!(script.contains("writeUpstreamBranchSelection(null)"));
@@ -384,7 +408,7 @@ fn injection_script_installs_upstream_branch_dropdown_adapter() {
     assert!(script.contains("cleanupInvalidUpstreamBranchOptions"));
     assert!(script.contains("branchMenuInNewWorktreeMode"));
     assert!(script.contains("branchMenuTriggerIsBranchControl"));
-    assert!(script.contains("actual-upstream-refs-v16"));
+    assert!(script.contains("actual-upstream-refs-v17"));
     assert!(script.contains("create and checkout new branch"));
     assert!(script.contains("if (/^start in"));
     assert!(script.contains("if (!branchMenuInNewWorktreeMode(trigger))"));
@@ -410,7 +434,7 @@ fn injection_script_rebuilds_upstream_options_for_each_project_branch_menu() {
     assert!(script.contains("projectContextFromProjectLabel"));
     assert!(script.contains("upstreamBranchOptionsMatchRefs"));
     assert!(script.contains("upstreamBranchDefaultsCache = new Map()"));
-    assert!(script.contains("actual-upstream-refs-v16"));
+    assert!(script.contains("actual-upstream-refs-v17"));
 }
 
 #[test]
@@ -493,34 +517,28 @@ fn bridge_result_expressions_json_escape_inputs() {
 }
 
 #[test]
-fn pick_page_target_prefers_codex_title_or_url() {
+fn pick_page_target_ignores_embedded_browser_page_named_codex() {
     let targets = vec![
         target(
-            "first",
+            "browser-pr",
             "page",
-            "Other",
-            "https://example.test",
-            Some("ws://first"),
+            "Fix Codex++ menu anchoring · Pull Request",
+            "https://github.com/BigPizzaV3/CodexPlusPlus/pull/1743",
+            Some("ws://browser-pr"),
         ),
         target(
-            "second",
+            "main",
             "page",
             "Codex",
-            "https://example.test",
-            Some("ws://second"),
-        ),
-        target(
-            "third",
-            "page",
-            "Other",
-            "https://codex.test",
-            Some("ws://third"),
+            "app://-/index.html",
+            Some("ws://main"),
         ),
     ];
 
-    let picked = pick_page_target(&targets).expect("target should be selected");
+    let picked = pick_page_target(&targets)
+        .expect("Codex app page should win over embedded browser content");
 
-    assert_eq!(picked.id, "second");
+    assert_eq!(picked.id, "main");
 }
 
 #[test]
@@ -548,34 +566,38 @@ fn pick_page_target_skips_avatar_overlay_pet_window() {
 }
 
 #[test]
-fn pick_page_target_falls_back_to_first_injectable_page() {
-    let targets = vec![
-        target(
-            "browser",
-            "browser",
-            "Codex",
-            "https://codex.test",
-            Some("ws://browser"),
-        ),
-        target(
-            "first",
-            "page",
-            "Other",
-            "https://example.test",
-            Some("ws://first"),
-        ),
-        target(
-            "second",
-            "page",
-            "Other 2",
-            "https://example.test/2",
-            Some("ws://second"),
-        ),
-    ];
+fn pick_page_target_rejects_embedded_browser_only_page() {
+    let targets = vec![target(
+        "browser-pr",
+        "page",
+        "Fix Codex++ menu anchoring · Pull Request",
+        "https://github.com/BigPizzaV3/CodexPlusPlus/pull/1743",
+        Some("ws://browser-pr"),
+    )];
 
-    let picked = pick_page_target(&targets).expect("target should be selected");
+    let error = pick_page_target(&targets)
+        .expect_err("embedded browser content must not be selected for injection");
 
-    assert_eq!(picked.id, "first");
+    assert!(
+        error
+            .to_string()
+            .contains("No injectable Codex page target found")
+    );
+}
+
+#[test]
+fn pick_page_target_accepts_chatgpt_desktop_page() {
+    let targets = vec![target(
+        "chatgpt",
+        "page",
+        "ChatGPT",
+        "https://chatgpt.com/",
+        Some("ws://chatgpt"),
+    )];
+
+    let picked = pick_page_target(&targets).expect("ChatGPT desktop page should be selected");
+
+    assert_eq!(picked.id, "chatgpt");
 }
 
 #[test]

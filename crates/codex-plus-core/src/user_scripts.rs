@@ -296,6 +296,8 @@ fn wrap_script(script: &UserScriptFile, source: &str) -> String {
     format!(
         r#"
 (() => {{
+  const codexPlusIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
+  if (!codexPlusIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
   window.__codexPlusUserScripts = window.__codexPlusUserScripts || {{ scripts: {{}} }};
   const key = {key};
   window.__codexPlusUserScripts.scripts[key] = {{ key, name: {name}, source: {source_name}, status: "loading", error: "", loadedAt: new Date().toISOString() }};
@@ -396,4 +398,28 @@ fn current_unix_timestamp_string() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|value| value.as_secs().to_string())
         .unwrap_or_else(|_| "0".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UserScriptFile, wrap_script};
+    use std::path::PathBuf;
+
+    #[test]
+    fn wrapped_user_script_is_limited_to_the_official_app_surface() {
+        let script = UserScriptFile {
+            key: "test-script".to_string(),
+            name: "Test Script".to_string(),
+            source: "test.js".to_string(),
+            path: PathBuf::from("test.js"),
+            enabled: true,
+        };
+
+        let wrapped = wrap_script(&script, "window.__testScriptLoaded = true;");
+
+        assert!(wrapped.contains("window.top !== window"));
+        assert!(wrapped.contains("!window.electronBridge"));
+        assert!(wrapped.contains("!/^app:\\/\\/\\-\\//i.test(window.location.href)"));
+        assert!(wrapped.contains("window.__testScriptLoaded = true;"));
+    }
 }
