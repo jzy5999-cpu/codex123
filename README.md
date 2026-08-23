@@ -48,6 +48,7 @@ codex123 是一个非官方、开发体验优先的 Codex App 外部增强启动
 
 ## 文档
 
+- [开发交接文档](docs/DEVELOPMENT_HANDOFF.md)：架构、启动链路、配置边界、构建发布、故障排查和交接清单。
 - [FAQ](docs/FAQ.md)：远控兼容中转、DeepSeek、macOS、Windows 边界等常见问题。
 - [推广文案](docs/PROMOTION.md)：可直接复制到 V2EX、即刻、X、知乎等平台的介绍文字。
 - [曝光清单](docs/OUTREACH.md)：GitHub topics、社区发布和内容重点。
@@ -368,6 +369,8 @@ git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 当前发布链路只提供 `macos-arm64.dmg`。Intel Mac 暂不作为第一优先级发布目标。
 
 ## 开发
+
+完整的架构、配置安全边界、发布流程和排障说明见 [开发交接文档](docs/DEVELOPMENT_HANDOFF.md)。
 
 ```bash
 # 前端检查

@@ -31,3 +31,12 @@
 - Rust 测试：`cargo test`
 - macOS 打包：`BINARY_DIR="$PWD/target/release" bash scripts/installer/macos/package-dmg.sh <version> arm64`
 - 公开前检查：`git diff --check`，并扫描 `sk-`、`OPENAI_API_KEY`、`access_token`、`refresh_token`、`Bearer` 等敏感字段。
+
+## HANDOFF 强制规则
+
+- 开始开发前完整阅读 `docs/DEVELOPMENT_HANDOFF.md`，并先运行 `git status -sb` 保护用户已有修改。
+- 每次开发完成后，必须更新 `docs/DEVELOPMENT_HANDOFF.md` 的开发完成记录。
+- 记录至少包含目标、变更文件、行为变化、验证结果、Git/构建/安装/发布状态、风险和下一步。
+- 基线、端口、部署方式、跨项目关系或安全边界变化时，同步更新 `/Users/jiangzengyan/Downloads/codex/DevSpace/HANDOFF.md`。
+- 未更新 HANDOFF，不得报告开发已经完成。
+- 纯只读检查或咨询没有产生开发变更时，不要求新增记录。

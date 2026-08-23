@@ -48,6 +48,7 @@ After installation, you get two entry points:
 
 ## Docs
 
+- [Development handoff (Chinese)](docs/DEVELOPMENT_HANDOFF.md): architecture, launch flow, configuration boundaries, release workflow, troubleshooting, and maintainer checklist.
 - [FAQ](docs/FAQ.md): common questions about remote-control-compatible relay mode, DeepSeek, macOS, and Windows scope.
 - [OpenAI Build Week submission notes](docs/BUILD_WEEK_SUBMISSION.md): judging setup, Build Week extension evidence, and Codex/GPT-5.6 collaboration notes.
 - [Promotion copy](docs/PROMOTION.md): ready-to-post Chinese copy for V2EX, Jike, X, Zhihu, and other communities.
@@ -309,6 +310,8 @@ There is a Windows x64 development build, but actual usability is not guaranteed
 The current release workflow only publishes `macos-arm64.dmg`. Intel Macs are not the first-priority release target.
 
 ## Development
+
+See the [development handoff](docs/DEVELOPMENT_HANDOFF.md) for architecture, configuration safety boundaries, release workflow, and troubleshooting details.
 
 ```bash
 # Frontend checks
