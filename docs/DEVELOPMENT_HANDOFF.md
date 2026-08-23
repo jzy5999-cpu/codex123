@@ -1,6 +1,6 @@
 # codex123 开发交接文档
 
-> 基线：`main` / `1fd514d` / `0.2.29`（2026-08-23）
+> 发布基线：`v0.2.29` / `7efcda6` / `0.2.29`（2026-08-23）
 >
 > 仓库：`jzy5999-cpu/codex123`
 >
@@ -368,3 +368,16 @@ curl -sS -X POST http://127.0.0.1:57321/backend/status \
 - Live 验证：仅停止旧 0.2.28 helper PID `3020`，未退出官方 ChatGPT；启动后新 helper PID `8987` 从 `/Applications/codex123.app/Contents/MacOS/codex123` 运行并监听 `127.0.0.1:57321`，官方 ChatGPT 保持原 PID `3026` 监听 `127.0.0.1:9229`；`latest-status.json` 为 `running` 且 `codex_app` 指向 `/Applications/ChatGPT.app`；`POST /backend/status` 返回 `status=ok`、`version=0.2.29`、`transport=http-helper`；新进程日志记录 `renderer.script_loaded version=0.2.29` 和持续 `backend/status=ok`；CDP 只读求值确认 session-delete bridge 为 function、App Server patch 版本 `5`、JSON patch `1`、MCP message patch 已安装、`modelPatchFailures=[]`。
 - 保留风险或未验证项：Provider Sync 和删除功能只做了隔离临时目录回归，不对真实 `~/.codex` 执行写操作；本次为复用原官方 ChatGPT 进程的无损 live 验证，没有重新登录或修改官方认证文件；上游 Remote Recovery、OpenAI Remote session identity 和 hosted sharing 明确未合入；尚未创建 tag 或 Release。
 - 下一步：用 `git ls-remote` 核对 `origin/main` 指向本次最终文档提交；tag 与 GitHub Release 仍需单独明确确认。
+
+### 2026-08-23 — 正式发布并验收 v0.2.29
+
+- 目标：将已提交、已安装并完成 live 验证的 0.2.29 正式发布为 GitHub Latest Release，并验证由 GitHub Actions 从 release tag 构建的真实下载资产。
+- 变更文件：发布后仅更新 `docs/DEVELOPMENT_HANDOFF.md`；release tag 指向的源码和功能未再修改。
+- 行为变化：无新增代码行为；`v0.2.29` 成为公开 Latest Release，更新检查可通过 Release API 和 `latest.json` 获取 macOS Apple Silicon DMG。
+- 验证命令与结果：发布前确认 `main`、本地 HEAD、`origin/main` 均为 `7efcda68984cecde6ccb7700191aa97eb8c00ebb` 且远端不存在 `v0.2.29`；annotated tag 的 peeled commit 精确指向该 SHA；GitHub Actions run `32645465587` 的 `macOS DMG arm64` 与 `Upload static latest.json` 两个 job 均为 `success`；Release API 确认 release 非 draft、非 prerelease 且为 Latest。
+- Git 状态：release tag `v0.2.29` 指向 `7efcda6`；本发布记录作为 tag 之后的纯文档提交推送 `origin/main`，不移动已发布 tag。
+- 构建与安装：Release 资产 `codex123-0.2.29-macos-arm64.dmg` 大小 `20,835,935` bytes，SHA-256 `9de1570f3a80f0130b571e7c8359648d0ba4ce23d14efdcf34b94d85f883808e`，与 GitHub API digest 一致且 `hdiutil verify` 通过；`latest.json` SHA-256 `083a6bd3555e51e6d46b877abd95fd5b380e427202f31a7004265444d411f341`，内容正确指向 `v0.2.29` 和该 DMG；镜像内两个 App 均为 0.2.29、Mach-O arm64、深度签名有效；已用 Release DMG 覆盖同版本本地候选，安装后二进制 SHA-256 分别为 launcher `9826dae2732b1648ab84fea030486638bb99332d54bdb5d6e91b9de55190801d`、manager `4a2190230f961a5d8740415d8a212abdae21da4f39c02a2814e1b04a28a6a4a7`，与挂载镜像一致。
+- 发布状态：GitHub Release `codex123 0.2.29` 已发布；URL 为 `https://github.com/jzy5999-cpu/codex123/releases/tag/v0.2.29`；DMG 和 `latest.json` 均已上传并通过下载复核。
+- Live 验证：Release 版 helper PID `19948` 从 `/Applications/codex123.app/Contents/MacOS/codex123` 运行并监听 `127.0.0.1:57321`；官方 ChatGPT 保持原 PID `3026` 监听 `127.0.0.1:9229`；`POST /backend/status` 返回 `status=ok`、`version=0.2.29`、`transport=http-helper`；日志记录 `renderer.script_loaded version=0.2.29`；CDP 确认 session-delete bridge、App Server patch `5`、JSON patch `1` 和 MCP message patch 正常，`modelPatchFailures=[]`。
+- 保留风险或未验证项：Release App 仍是 ad-hoc 签名，未做 Developer ID notarization；Actions 对 `actions/checkout@v4`、`actions/setup-node@v4` 和 `softprops/action-gh-release@v2` 报告 Node.js 20 弃用提醒，但本次 run 成功且资产有效；Provider Sync 和会话删除仍只在隔离临时目录回归中验证，没有对真实 `~/.codex` 写入测试。
+- 下一步：后续单独升级 GitHub Actions 依赖以消除 Node.js 20 弃用提醒；不因该提醒重发或移动 `v0.2.29`。
