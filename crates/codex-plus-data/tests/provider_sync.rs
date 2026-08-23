@@ -43,6 +43,20 @@ fn write_rollout_with_providers(path: &Path, providers: &[&str], thread_id: &str
     fs::write(path, format!("{}\n", lines.join("\n"))).unwrap();
 }
 
+fn write_non_root_rollout(path: &Path, provider: &str, thread_id: &str, cwd: &str) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let first = json!({
+        "type": "session_meta",
+        "payload": {
+            "id": thread_id,
+            "model_provider": provider,
+            "cwd": cwd,
+            "source": { "subagent": { "role": "worker" } }
+        }
+    });
+    fs::write(path, format!("{first}\n")).unwrap();
+}
+
 fn create_state_db(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -184,6 +198,95 @@ fn provider_sync_updates_legacy_and_codex_sqlite_session_dbs() {
     let backup_dir = result.backup_dir.unwrap();
     assert!(backup_dir.join("db/state_5.sqlite").exists());
     assert!(backup_dir.join("db/sqlite/codex-dev.db").exists());
+}
+
+#[test]
+fn provider_sync_excludes_subagent_rollouts_and_sqlite_rows() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path().join(".codex");
+    fs::create_dir(&home).unwrap();
+    fs::write(home.join("config.toml"), "model_provider = \"apigather\"\n").unwrap();
+    let user_rollout = home.join("sessions/2026/rollout-user.jsonl");
+    let subagent_rollout = home.join("sessions/2026/rollout-subagent.jsonl");
+    write_rollout(&user_rollout, "openai", "thread-user", "C:/workspace");
+    write_non_root_rollout(
+        &subagent_rollout,
+        "openai",
+        "thread-subagent",
+        "C:/workspace",
+    );
+
+    let db_path = home.join("state_5.sqlite");
+    let db = Connection::open(&db_path).unwrap();
+    db.execute(
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, model_provider TEXT, archived INTEGER, has_user_event INTEGER, cwd TEXT, source TEXT, thread_source TEXT)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "CREATE TABLE thread_spawn_edges (parent_thread_id TEXT, child_thread_id TEXT)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO threads VALUES ('thread-user', 'openai', 0, 0, 'C:/old', 'cli', 'user')",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO threads VALUES ('thread-subagent', 'openai', 0, 0, 'C:/old', 'subagent', 'subagent')",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO thread_spawn_edges VALUES ('thread-user', 'thread-subagent')",
+        [],
+    )
+    .unwrap();
+    drop(db);
+
+    let result = run_provider_sync(Some(&home));
+
+    assert_eq!(result.status, ProviderSyncStatus::Synced);
+    assert_eq!(result.changed_session_files, 1);
+    assert_eq!(result.sqlite_rows_updated, 1);
+    let user_first: serde_json::Value = serde_json::from_str(
+        fs::read_to_string(&user_rollout)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap(),
+    )
+    .unwrap();
+    let subagent_first: serde_json::Value = serde_json::from_str(
+        fs::read_to_string(&subagent_rollout)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(user_first["payload"]["model_provider"], "apigather");
+    assert_eq!(subagent_first["payload"]["model_provider"], "openai");
+    let db = Connection::open(&db_path).unwrap();
+    assert_eq!(
+        db.query_row(
+            "SELECT model_provider FROM threads WHERE id = 'thread-user'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap(),
+        "apigather"
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT model_provider FROM threads WHERE id = 'thread-subagent'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap(),
+        "openai"
+    );
 }
 
 #[test]

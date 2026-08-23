@@ -457,6 +457,42 @@ fn undo_codex_thread_delete_fails_when_agent_job_was_reassigned() {
 }
 
 #[test]
+fn delete_codex_thread_updates_session_index_and_undo_restores_it() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    let sqlite_dir = home.join("sqlite");
+    fs::create_dir_all(&sqlite_dir).unwrap();
+    let db_path = sqlite_dir.join("codex-dev.db");
+    let rollout_path = home.join("rollout.jsonl");
+    let index_path = home.join("session_index.jsonl");
+    fs::write(&rollout_path, "{\"type\":\"message\"}\n").unwrap();
+    create_codex_thread_db(&db_path, &rollout_path);
+    fs::write(
+        &index_path,
+        "{\"id\":\"t1\",\"thread_name\":\"Codex Thread\"}\n{\"id\":\"other\",\"thread_name\":\"Keep me\"}\n",
+    )
+    .unwrap();
+    let adapter = SQLiteStorageAdapter::new(&db_path, BackupStore::new(home.join("backups")))
+        .with_codex_home(home);
+
+    let deleted = adapter.delete_local(&session("local:t1", "Codex Thread"));
+
+    assert_eq!(deleted.status, DeleteStatus::LocalDeleted);
+    let index_text = fs::read_to_string(&index_path).unwrap();
+    assert!(!index_text.contains("\"id\":\"t1\""));
+    assert!(index_text.contains("\"id\":\"other\""));
+
+    let restored = adapter.undo(deleted.undo_token.as_deref().unwrap());
+
+    assert_eq!(restored.status, DeleteStatus::Undone);
+    let index_text = fs::read_to_string(&index_path).unwrap();
+    assert_eq!(index_text.matches("\"id\":\"t1\"").count(), 1);
+    assert_eq!(index_text.matches("\"id\":\"other\"").count(), 1);
+    assert_eq!(thread_count(&db_path, "t1"), 1);
+    assert!(rollout_path.exists());
+}
+
+#[test]
 fn codex_delete_rolls_back_when_related_delete_fails() {
     let tmp = tempdir().unwrap();
     let db_path = tmp.path().join("state_5.sqlite");
@@ -521,6 +557,7 @@ fn delete_local_from_paths_removes_duplicate_threads_from_all_databases() {
         vec![first_db.clone(), second_db.clone()],
         BackupStore::new(tmp.path().join("backups")),
         &session("t1", "Codex Thread"),
+        None,
     );
 
     assert_eq!(result.status, DeleteStatus::LocalDeleted);
@@ -554,6 +591,7 @@ fn delete_local_from_paths_undo_restores_duplicate_threads_to_source_databases()
         vec![old_db.clone(), new_db.clone()],
         backups.clone(),
         &session("t1", "Codex Thread"),
+        None,
     );
     let token = deleted.undo_token.as_deref().unwrap();
 
@@ -595,6 +633,7 @@ fn grouped_undo_preflights_all_databases_before_restoring_any() {
         vec![first_db.clone(), second_db.clone()],
         backups.clone(),
         &session("t1", "Codex Thread"),
+        None,
     );
     let token = deleted.undo_token.as_deref().unwrap();
     Connection::open(&second_db)

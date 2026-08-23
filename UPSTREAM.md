@@ -9,14 +9,18 @@
 
 ## Upstream Checks
 
-- Last checked upstream `main`: `8205bb5`
-- Checked at: `2026-06-05`
+- Last checked upstream `main`: `9c3daab`
+- Last checked upstream release: `v1.2.52` (`4af66b8`)
+- Checked at: `2026-08-23`
 - Selection policy: codex123 reviews CodexPlusPlus changes case by case and
   imports only the parts that fit this project's macOS-first, personal-use,
   development-experience-focused scope.
-- Potential future imports from this check: Codex App version-gated plugin
-  unlock behavior and provider-sync target selection. These affect injection
-  and provider behavior, so they should be tested separately before release.
+- Selected imports from this check: Responses reasoning usage completion,
+  lower-overhead plugin filtering, non-user thread isolation in Provider Sync,
+  and delete/undo synchronization for `session_index.jsonl`.
+- Deferred or excluded: Weixin connection, hosted session sharing, Stepwise,
+  Dream Skin, VLM, Windows release changes, sponsor/community content, and
+  broad upstream branding/runtime replacement.
 
 ## Local Changes
 

@@ -105,7 +105,9 @@ pub fn run_provider_sync_with_target(
         );
     }
     let sync_result = (|| -> anyhow::Result<ProviderSyncResult> {
-        let changes = collect_session_changes(&home, &target_provider)?;
+        let sqlite_paths = codex_plus_core::codex_sqlite::codex_session_db_paths_from_home(&home);
+        let non_user_thread_ids = collect_non_user_thread_ids_for_paths(&sqlite_paths)?;
+        let changes = collect_session_changes(&home, &target_provider, &non_user_thread_ids)?;
         let rewrite_changes = changes
             .iter()
             .filter(|change| change.rewrite_needed)
@@ -123,12 +125,12 @@ pub fn run_provider_sync_with_target(
             .filter_map(|change| Some((change.thread_id.clone()?, change.cwd.clone()?)))
             .filter(|(thread_id, _)| !projectless_thread_ids.contains(thread_id))
             .collect::<HashMap<_, _>>();
-        let sqlite_paths = codex_plus_core::codex_sqlite::codex_session_db_paths_from_home(&home);
         let sqlite_update_count = count_sqlite_updates_for_paths(
             &sqlite_paths,
             &target_provider,
             &thread_ids_with_user_events,
             &cwd_by_thread_id,
+            &non_user_thread_ids,
         )?;
         let global_state_update_count =
             count_global_state_updates(&home.join(".codex-global-state.json"))?;
@@ -151,6 +153,7 @@ pub fn run_provider_sync_with_target(
                 &target_provider,
                 &thread_ids_with_user_events,
                 &cwd_by_thread_id,
+                &non_user_thread_ids,
             )?;
             apply_global_state_update(&home.join(".codex-global-state.json"))?;
             prune_backups(&home)?;
@@ -268,12 +271,21 @@ fn release_lock(path: &Path) -> std::io::Result<()> {
 fn collect_session_changes(
     home: &Path,
     target_provider: &str,
+    non_user_thread_ids: &HashSet<String>,
 ) -> anyhow::Result<Vec<SessionChange>> {
     let mut changes = Vec::new();
     for path in rollout_files(home)? {
         let text = fs::read_to_string(&path)?;
         let rewrite = rewrite_rollout_session_meta_providers(&text, target_provider)?;
         if rewrite.session_meta_count == 0 {
+            continue;
+        }
+        if rollout_session_meta_marks_non_root_agent(&text)
+            || rewrite
+                .thread_id
+                .as_ref()
+                .is_some_and(|thread_id| non_user_thread_ids.contains(thread_id))
+        {
             continue;
         }
         let has_user_event = text.contains("\"user_message\"") || text.contains("\"user_input\"");
@@ -291,6 +303,52 @@ fn collect_session_changes(
         });
     }
     Ok(changes)
+}
+
+fn rollout_session_meta_marks_non_root_agent(text: &str) -> bool {
+    text.lines().any(|line| {
+        let Ok(record) = serde_json::from_str::<Value>(line) else {
+            return false;
+        };
+        if record.get("type").and_then(Value::as_str) != Some("session_meta") {
+            return false;
+        }
+        let Some(payload) = record.get("payload") else {
+            return false;
+        };
+        payload
+            .get("source")
+            .is_some_and(source_value_marks_non_root_agent)
+            || payload
+                .get("thread_source")
+                .and_then(Value::as_str)
+                .is_some_and(thread_source_marks_non_root)
+    })
+}
+
+fn source_value_marks_non_root_agent(source: &Value) -> bool {
+    match source {
+        Value::Object(object) => {
+            object.contains_key("sub_agent")
+                || object.contains_key("subagent")
+                || object.contains_key("internal")
+        }
+        Value::String(value) => source_text_marks_non_root_agent(value),
+        _ => false,
+    }
+}
+
+fn source_text_marks_non_root_agent(source: &str) -> bool {
+    let source = source.trim().to_ascii_lowercase();
+    source == "subagent"
+        || source == "internal"
+        || source.starts_with("subagent_")
+        || source.starts_with("internal_")
+}
+
+fn thread_source_marks_non_root(source: &str) -> bool {
+    let source = source.trim();
+    source.eq_ignore_ascii_case("subagent") || source.eq_ignore_ascii_case("memory_consolidation")
 }
 
 fn rewrite_rollout_session_meta_providers(
@@ -487,11 +545,85 @@ fn table_columns(db: &Connection, table: &str) -> anyhow::Result<HashSet<String>
         .collect::<rusqlite::Result<HashSet<_>>>()?)
 }
 
+fn collect_non_user_thread_ids_for_paths(paths: &[PathBuf]) -> anyhow::Result<HashSet<String>> {
+    let mut non_user_ids = HashSet::new();
+    let mut explicit_user_ids = HashSet::new();
+    for path in paths {
+        if !path.exists() {
+            continue;
+        }
+        let db = Connection::open(path)?;
+        for (table, column) in [
+            ("thread_spawn_edges", "child_thread_id"),
+            ("agent_job_items", "assigned_thread_id"),
+        ] {
+            if !table_columns(&db, table)?.contains(column) {
+                continue;
+            }
+            let sql =
+                format!("SELECT DISTINCT {column} FROM {table} WHERE COALESCE({column}, '') <> ''");
+            non_user_ids.extend(
+                db.prepare(&sql)?
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<HashSet<_>>>()?,
+            );
+        }
+
+        let columns = table_columns(&db, "threads")?;
+        if !columns.contains("id") {
+            continue;
+        }
+        let source = if columns.contains("source") {
+            "COALESCE(source, '')"
+        } else {
+            "''"
+        };
+        let thread_source = if columns.contains("thread_source") {
+            "thread_source"
+        } else {
+            "NULL"
+        };
+        let sql = format!(
+            "SELECT id, {source}, {thread_source} FROM threads WHERE COALESCE(id, '') <> ''"
+        );
+        let mut stmt = db.prepare(&sql)?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1).unwrap_or_default(),
+                row.get::<_, Option<String>>(2).unwrap_or(None),
+            ))
+        })?;
+        for row in rows {
+            let (thread_id, source, thread_source) = row?;
+            let structured_non_user = serde_json::from_str::<Value>(source.trim())
+                .is_ok_and(|value| source_value_marks_non_root_agent(&value));
+            if structured_non_user
+                || thread_source
+                    .as_deref()
+                    .is_some_and(thread_source_marks_non_root)
+            {
+                non_user_ids.insert(thread_id);
+            } else if thread_source
+                .as_deref()
+                .is_some_and(|value| value.trim().eq_ignore_ascii_case("user"))
+            {
+                explicit_user_ids.insert(thread_id);
+            } else if source_text_marks_non_root_agent(&source) {
+                non_user_ids.insert(thread_id);
+            }
+        }
+    }
+    non_user_ids.retain(|thread_id| !explicit_user_ids.contains(thread_id));
+    Ok(non_user_ids)
+}
+
 fn count_sqlite_updates(
     path: &Path,
     target_provider: &str,
     user_event_thread_ids: &HashSet<String>,
     cwd_by_thread_id: &HashMap<String, String>,
+    non_user_thread_ids: &HashSet<String>,
 ) -> anyhow::Result<usize> {
     if !path.exists() {
         return Ok(0);
@@ -501,11 +633,18 @@ fn count_sqlite_updates(
     if !columns.contains("model_provider") {
         return Ok(0);
     }
-    let mut total: usize = db.query_row(
-        "SELECT COUNT(*) FROM threads WHERE COALESCE(model_provider, '') <> ?1",
-        [target_provider],
-        |row| row.get::<_, i64>(0),
-    )? as usize;
+    let mut stmt = db.prepare("SELECT id, COALESCE(model_provider, '') FROM threads")?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut total = rows
+        .into_iter()
+        .filter(|(thread_id, provider)| {
+            !non_user_thread_ids.contains(thread_id) && provider != target_provider
+        })
+        .count();
     if columns.contains("has_user_event") {
         for thread_id in user_event_thread_ids {
             total += db.query_row(
@@ -532,6 +671,7 @@ fn count_sqlite_updates_for_paths(
     target_provider: &str,
     user_event_thread_ids: &HashSet<String>,
     cwd_by_thread_id: &HashMap<String, String>,
+    non_user_thread_ids: &HashSet<String>,
 ) -> anyhow::Result<usize> {
     let mut total = 0;
     for path in paths {
@@ -540,6 +680,7 @@ fn count_sqlite_updates_for_paths(
             target_provider,
             user_event_thread_ids,
             cwd_by_thread_id,
+            non_user_thread_ids,
         )?;
     }
     Ok(total)
@@ -550,6 +691,7 @@ fn apply_sqlite_update(
     target_provider: &str,
     user_event_thread_ids: &HashSet<String>,
     cwd_by_thread_id: &HashMap<String, String>,
+    non_user_thread_ids: &HashSet<String>,
 ) -> anyhow::Result<usize> {
     if !path.exists() {
         return Ok(0);
@@ -560,10 +702,27 @@ fn apply_sqlite_update(
         return Ok(0);
     }
     let tx = db.transaction()?;
-    let provider_rows = tx.execute(
-        "UPDATE threads SET model_provider = ?1 WHERE COALESCE(model_provider, '') <> ?1",
-        [target_provider],
-    )?;
+    let provider_thread_ids = {
+        let mut stmt = tx.prepare("SELECT id, COALESCE(model_provider, '') FROM threads")?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows.into_iter()
+            .filter(|(thread_id, provider)| {
+                !non_user_thread_ids.contains(thread_id) && provider != target_provider
+            })
+            .map(|(thread_id, _)| thread_id)
+            .collect::<Vec<_>>()
+    };
+    let mut provider_rows = 0usize;
+    for thread_id in provider_thread_ids {
+        provider_rows += tx.execute(
+            "UPDATE threads SET model_provider = ?1 WHERE id = ?2 AND COALESCE(model_provider, '') <> ?1",
+            (target_provider, thread_id),
+        )?;
+    }
     if columns.contains("has_user_event") {
         for thread_id in user_event_thread_ids {
             tx.execute(
@@ -589,6 +748,7 @@ fn apply_sqlite_update_for_paths(
     target_provider: &str,
     user_event_thread_ids: &HashSet<String>,
     cwd_by_thread_id: &HashMap<String, String>,
+    non_user_thread_ids: &HashSet<String>,
 ) -> anyhow::Result<usize> {
     let mut total = 0;
     for path in paths {
@@ -597,6 +757,7 @@ fn apply_sqlite_update_for_paths(
             target_provider,
             user_event_thread_ids,
             cwd_by_thread_id,
+            non_user_thread_ids,
         )?;
     }
     Ok(total)

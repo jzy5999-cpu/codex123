@@ -132,7 +132,7 @@ fn injection_script_unlocks_nested_disabled_plugin_install_buttons() {
 fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
     let script = assets::injection_script(57321);
 
-    assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"14\""));
+    assert!(script.contains("codexPluginMarketplaceUnlockVersion = \"15\""));
     assert!(script.contains("codexPluginLegacyEntryUnlockBeforeVersion = \"26.601.21317\""));
     assert!(script.contains("pluginMarketplaceUnlock: true"));
     assert!(script.contains("settings.pluginMarketplaceUnlock = false"));
@@ -140,6 +140,10 @@ fn injection_script_keeps_plugin_marketplace_unlocks_codex123_branded() {
     assert!(script.contains("codex123-openai-curated"));
     assert!(script.contains("codex123-openai-primary-runtime"));
     assert!(script.contains("installPluginBuildFlavorFilterPatch"));
+    assert!(script.contains("codexPluginFilterSourceCache = new WeakMap()"));
+    assert!(script.contains("codexPluginFilterCallbackSource"));
+    assert!(script.contains("const filtered = originalFilter.call(this, callback, thisArg)"));
+    assert!(script.contains("!filtered.includes(plugin) : !callback(plugin)"));
     assert!(script.contains("plugin_build_flavor_filter_bypassed"));
     assert!(script.contains("plugin_marketplace_hidden_filter_bypassed"));
     assert!(script.contains("plugin_install_request_debug"));

@@ -6,11 +6,13 @@ use serde_json::{Map, Value, json};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn delete_local_from_paths(
     db_paths: impl IntoIterator<Item = PathBuf>,
     backup_store: BackupStore,
     session: &SessionRef,
+    codex_home: Option<&Path>,
 ) -> DeleteResult {
     let mut result = failed(
         &session.session_id,
@@ -19,7 +21,12 @@ pub fn delete_local_from_paths(
     let mut deleted_count = 0usize;
     let mut backup_tokens = Vec::new();
     for db_path in db_paths {
-        let adapter = SQLiteStorageAdapter::new(db_path, backup_store.clone());
+        let adapter = match codex_home {
+            Some(home) => {
+                SQLiteStorageAdapter::new(db_path, backup_store.clone()).with_codex_home(home)
+            }
+            None => SQLiteStorageAdapter::new(db_path, backup_store.clone()),
+        };
         let candidate_result = adapter.delete_local(session);
         if matches!(candidate_result.status, DeleteStatus::LocalDeleted) {
             deleted_count += 1;
@@ -66,6 +73,7 @@ pub struct SQLiteStorageAdapter {
     db_path: PathBuf,
     backup_store: BackupStore,
     allowed_db_paths: Vec<PathBuf>,
+    codex_home: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +98,7 @@ impl SQLiteStorageAdapter {
             allowed_db_paths: vec![db_path.clone()],
             db_path,
             backup_store,
+            codex_home: None,
         }
     }
 
@@ -99,6 +108,11 @@ impl SQLiteStorageAdapter {
                 self.allowed_db_paths.push(db_path);
             }
         }
+        self
+    }
+
+    pub fn with_codex_home(mut self, codex_home: impl Into<PathBuf>) -> Self {
+        self.codex_home = Some(codex_home.into());
         self
     }
 
@@ -127,7 +141,12 @@ impl SQLiteStorageAdapter {
         let result = (|| -> anyhow::Result<DeleteResult> {
             let backups = undo_backups(&self.backup_store, token)?;
             let session_id = backups[0]["session_id"].as_str().unwrap_or("").to_string();
-            restore_backups(&backups, &self.db_path, &self.allowed_db_paths)?;
+            restore_backups(
+                &backups,
+                &self.db_path,
+                &self.allowed_db_paths,
+                self.codex_home.as_deref(),
+            )?;
             Ok(DeleteResult {
                 status: DeleteStatus::Undone,
                 session_id,
@@ -416,6 +435,22 @@ impl SQLiteStorageAdapter {
         if !file_backups.is_empty() {
             tables.insert("__files".to_string(), Value::Array(file_backups.clone()));
         }
+        let session_index_lines = self
+            .codex_home
+            .as_deref()
+            .and_then(|home| session_index_lines_for_thread(home, &thread_id).ok())
+            .unwrap_or_default();
+        if !session_index_lines.is_empty() {
+            tables.insert(
+                "__session_index".to_string(),
+                Value::Array(
+                    session_index_lines
+                        .iter()
+                        .map(|line| Value::String(line.clone()))
+                        .collect(),
+                ),
+            );
+        }
         let token =
             self.backup_store
                 .write_backup(&thread_id, &self.db_path, Value::Object(tables))?;
@@ -461,19 +496,32 @@ impl SQLiteStorageAdapter {
                 }
             }
         }
+        let session_index_note = self.codex_home.as_deref().and_then(|home| {
+            remove_session_index_entry(home, &thread_id)
+                .err()
+                .map(|error| format!("session_index.jsonl 清理失败：{error}"))
+        });
         if !file_errors.is_empty() {
+            let mut message = format!(
+                "本地数据库已删除，但文件删除失败：{}",
+                file_errors.join("; ")
+            );
+            if let Some(note) = session_index_note.as_deref() {
+                message = format!("{message}；{note}");
+            }
             return Ok(DeleteResult {
                 status: DeleteStatus::Failed,
                 session_id: thread_id,
-                message: format!(
-                    "本地数据库已删除，但文件删除失败：{}",
-                    file_errors.join("; ")
-                ),
+                message,
                 undo_token: Some(token.clone()),
                 backup_path: Some(backup_path.to_string_lossy().to_string()),
             });
         }
-        Ok(local_deleted(&thread_id, &token, &backup_path))
+        let mut result = local_deleted(&thread_id, &token, &backup_path);
+        if let Some(note) = session_index_note {
+            result.message = format!("{}；{}", result.message, note);
+        }
+        Ok(result)
     }
 }
 
@@ -531,10 +579,125 @@ fn undo_backups(backup_store: &BackupStore, token: &str) -> anyhow::Result<Vec<V
         .collect()
 }
 
+fn session_index_line_thread_id(line: &str) -> Option<String> {
+    serde_json::from_str::<Value>(line)
+        .ok()?
+        .get("id")?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+fn session_index_lines_for_thread(
+    codex_home: &Path,
+    thread_id: &str,
+) -> anyhow::Result<Vec<String>> {
+    let path = codex_home.join("session_index.jsonl");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    Ok(fs::read_to_string(path)?
+        .lines()
+        .filter(|line| session_index_line_thread_id(line).as_deref() == Some(thread_id))
+        .map(ToString::to_string)
+        .collect())
+}
+
+fn remove_session_index_entry(codex_home: &Path, thread_id: &str) -> anyhow::Result<usize> {
+    let path = codex_home.join("session_index.jsonl");
+    if !path.exists() {
+        return Ok(0);
+    }
+    let original = fs::read(&path)?;
+    let text = String::from_utf8(original.clone())?;
+    let mut removed = 0usize;
+    let mut next = String::with_capacity(text.len());
+    for segment in text.split_inclusive('\n') {
+        let line = segment.trim_end_matches(['\r', '\n']);
+        if session_index_line_thread_id(line).as_deref() == Some(thread_id) {
+            removed += 1;
+        } else {
+            next.push_str(segment);
+        }
+    }
+    if removed == 0 || fs::read(&path)? != original {
+        return Ok(0);
+    }
+    atomic_write_session_index(&path, next.as_bytes())?;
+    Ok(removed)
+}
+
+fn restore_session_index_entries(codex_home: &Path, lines: &[String]) -> anyhow::Result<usize> {
+    if lines.is_empty() {
+        return Ok(0);
+    }
+    let path = codex_home.join("session_index.jsonl");
+    let original = if path.exists() {
+        fs::read(&path)?
+    } else {
+        Vec::new()
+    };
+    let mut next = String::from_utf8(original.clone())?;
+    let mut existing_ids = next
+        .lines()
+        .filter_map(session_index_line_thread_id)
+        .collect::<HashSet<_>>();
+    if !next.is_empty() && !next.ends_with('\n') {
+        next.push('\n');
+    }
+    let mut appended = 0usize;
+    for line in lines {
+        if let Some(thread_id) = session_index_line_thread_id(line) {
+            if !existing_ids.insert(thread_id) {
+                continue;
+            }
+        }
+        next.push_str(line);
+        next.push('\n');
+        appended += 1;
+    }
+    if appended == 0 {
+        return Ok(0);
+    }
+    let current = if path.exists() {
+        fs::read(&path)?
+    } else {
+        Vec::new()
+    };
+    if current != original {
+        return Ok(0);
+    }
+    atomic_write_session_index(&path, next.as_bytes())?;
+    Ok(appended)
+}
+
+fn atomic_write_session_index(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("session_index.jsonl");
+    let temp_path = path.with_file_name(format!(
+        ".{file_name}.codex123-{}-{nonce}.tmp",
+        std::process::id()
+    ));
+    fs::write(&temp_path, bytes)?;
+    match fs::rename(&temp_path, path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = fs::remove_file(&temp_path);
+            Err(error.into())
+        }
+    }
+}
+
 fn restore_backups(
     backups: &[Value],
     fallback_db_path: &Path,
     allowed_db_paths: &[PathBuf],
+    codex_home: Option<&Path>,
 ) -> anyhow::Result<()> {
     for backup in backups {
         let Some(tables) = backup["tables"].as_object() else {
@@ -571,6 +734,16 @@ fn restore_backups(
                     fs::create_dir_all(parent)?;
                 }
                 fs::write(path, bytes)?;
+            }
+        }
+        if let Some(entries) = tables.get("__session_index").and_then(Value::as_array) {
+            let lines = entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect::<Vec<_>>();
+            if let Some(home) = codex_home.filter(|_| !lines.is_empty()) {
+                let _ = restore_session_index_entries(home, &lines);
             }
         }
     }
@@ -700,6 +873,7 @@ fn validate_restore_tables(tables: &Map<String, Value>) -> anyhow::Result<()> {
         "stage1_outputs",
         "agent_job_items",
         "__files",
+        "__session_index",
     ];
     for table in tables.keys() {
         if !allowed.contains(&table.as_str()) {

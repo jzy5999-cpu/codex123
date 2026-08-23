@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.2.29 - 2026-08-23
+
+- 选择性审计 CodexPlusPlus `v1.2.48`-`v1.2.52`，只合入与 codex123 现有 macOS、协议代理、Provider Sync 和外部 CDP 注入架构直接相关的稳定性修复。
+- Chat Completions 转 Responses 的所有完成事件都会补齐 `output_tokens_details.reasoning_tokens`；上游未返回 reasoning usage 时写入 `0`，避免 Codex 把完整响应误判为完成事件解析失败或中途断流。
+- 插件市场过滤补丁先执行原始 `Array.prototype.filter`，仅在确实隐藏官方插件时检查已缓存的回调源码并回退完整列表，减少 renderer 全局过滤开销并兼容新版压缩函数签名。
+- Provider Sync 会从 rollout `session_meta`、`thread_spawn_edges`、`agent_job_items` 和线程 source 字段识别 subagent、guardian/memory consolidation 等非用户线程，不再改写这些内部线程的 provider、cwd 或 user-event 状态。
+- 删除 Codex 会话时同步原子清理 `session_index.jsonl`，并把被移除的索引行纳入原有 undo 备份；撤销删除时去重恢复，避免侧栏残留无法打开的幽灵会话。
+- 本轮不合入微信连接、会话分享站、Stepwise、Dream Skin、VLM、Windows 发布、上游赞助/交流群或品牌内容；不修改 Codex App、`app.asar`、官方登录态或 RemoteRelay Key 边界。
+
 ## 0.2.28 - 2026-08-12
 
 - 选择性合入 CodexPlusPlus `v1.2.47` 中对 codex123 有用的当前 Codex 兼容性修复，继续只更新 macOS Apple Silicon 版。
